@@ -1,0 +1,144 @@
+import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/hooks/useAuth";
+import { useShop } from "@/hooks/useShop";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarHeader,
+  SidebarFooter,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Users,
+  FileText,
+  Settings,
+  UserCog,
+  Globe,
+  LogOut,
+  Store,
+  FolderOpen,
+  TrendingUp,
+  CreditCard,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const mainNavItems = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Point of Sale", url: "/dashboard/pos", icon: ShoppingCart },
+  { title: "Products", url: "/dashboard/products", icon: Package },
+  { title: "Categories", url: "/dashboard/categories", icon: FolderOpen },
+  { title: "Customers", url: "/dashboard/customers", icon: Users },
+  { title: "Sales History", url: "/dashboard/sales", icon: FileText },
+  { title: "Loans", url: "/dashboard/loans", icon: CreditCard },
+];
+
+const adminNavItems = [
+  { title: "Reports", url: "/dashboard/reports", icon: TrendingUp },
+  { title: "User Management", url: "/dashboard/users", icon: UserCog },
+  { title: "Website Settings", url: "/dashboard/website", icon: Globe },
+  { title: "Shop Settings", url: "/dashboard/settings", icon: Settings },
+];
+
+export function DashboardSidebar() {
+  const { signOut } = useAuth();
+  const { shop, isOwner } = useShop();
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-b border-sidebar-border">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+            <Store className="h-5 w-5 text-primary-foreground" />
+          </div>
+          {!collapsed && (
+            <div className="flex flex-col overflow-hidden">
+              <span className="font-bold text-sidebar-foreground truncate">
+                {shop?.name || "ABAF-SHOP"}
+              </span>
+              <span className="text-xs text-sidebar-foreground/60">
+                {isOwner ? "Owner" : "Staff"}
+              </span>
+            </div>
+          )}
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Main</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {mainNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild tooltip={item.title}>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/dashboard"}
+                      className="hover:bg-sidebar-accent"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {isOwner && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminNavItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild tooltip={item.title}>
+                      <NavLink
+                        to={item.url}
+                        className="hover:bg-sidebar-accent"
+                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+      </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Sign Out">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={signOut}
+              >
+                <LogOut className="h-4 w-4" />
+                {!collapsed && <span>Sign Out</span>}
+              </Button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}

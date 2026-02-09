@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Store, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -14,19 +15,28 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // TODO: Implement actual login with Supabase
-    setTimeout(() => {
+    const { error } = await signIn(email, password);
+
+    if (error) {
       toast({
-        title: "Login functionality coming soon",
-        description: "Authentication will be implemented with the database setup.",
+        variant: "destructive",
+        title: "Login Failed",
+        description: error.message,
       });
       setIsLoading(false);
-    }, 1000);
+    } else {
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      navigate("/dashboard");
+    }
   };
 
   return (
@@ -54,7 +64,7 @@ const Login = () => {
               <Store className="h-7 w-7 text-primary-foreground" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
-            <p className="text-muted-foreground mt-1">Log in to your NE-SHOP account</p>
+            <p className="text-muted-foreground mt-1">Log in to your ABAF-SHOP account</p>
           </div>
 
           {/* Form */}
@@ -104,21 +114,6 @@ const Login = () => {
               {isLoading ? "Logging in..." : "Log In"}
             </Button>
           </form>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-            </div>
-          </div>
-
-          {/* PIN login */}
-          <Button variant="outline" className="w-full" size="lg">
-            Use PIN to Login
-          </Button>
 
           {/* Sign up link */}
           <p className="text-center text-sm text-muted-foreground mt-6">

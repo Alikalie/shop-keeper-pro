@@ -9,11 +9,11 @@ export function Footer() {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
               <Store className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-background">NE-SHOP</span>
+            <span className="text-xl font-bold text-background">ABAF-SHOP</span>
           </div>
 
           <p className="text-background/60 text-sm text-center">
-            © 2026 NE-SHOP. Made with ❤️ for Sierra Leone retailers.
+            © 2026 ABAF-SHOP. Made with ❤️ for Sierra Leone retailers.
           </p>
 
           <div className="flex items-center gap-6">

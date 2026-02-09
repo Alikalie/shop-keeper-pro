@@ -16,7 +16,7 @@ export function Navbar() {
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <Store className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">NE-SHOP</span>
+            <span className="text-xl font-bold text-foreground">ABAF-SHOP</span>
           </Link>
 
           {/* Desktop nav */}

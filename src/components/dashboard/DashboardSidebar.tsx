@@ -2,32 +2,12 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useShop } from "@/hooks/useShop";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  Users,
-  FileText,
-  Settings,
-  UserCog,
-  Globe,
-  LogOut,
-  Store,
-  FolderOpen,
-  TrendingUp,
-  CreditCard,
+  LayoutDashboard, Package, ShoppingCart, Users, FileText, Settings,
+  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -54,6 +34,14 @@ export function DashboardSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
 
+  const handleEmailSupport = () => {
+    window.location.href = "mailto:support@abafshop.com?subject=ABAF-SHOP Support Request";
+  };
+
+  const handleWhatsAppSupport = () => {
+    window.open("https://wa.me/23200000000?text=Hi, I need help with ABAF-SHOP", "_blank");
+  };
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
@@ -63,12 +51,8 @@ export function DashboardSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col overflow-hidden">
-              <span className="font-bold text-sidebar-foreground truncate">
-                {shop?.name || "ABAF-SHOP"}
-              </span>
-              <span className="text-xs text-sidebar-foreground/60">
-                {isOwner ? "Owner" : "Staff"}
-              </span>
+              <span className="font-bold text-sidebar-foreground truncate">{shop?.name || "ABAF-SHOP"}</span>
+              <span className="text-xs text-sidebar-foreground/60">{isOwner ? "Owner" : "Staff"}</span>
             </div>
           )}
         </div>
@@ -82,12 +66,7 @@ export function DashboardSidebar() {
               {mainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/dashboard"}
-                      className="hover:bg-sidebar-accent"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                    >
+                    <NavLink to={item.url} end={item.url === "/dashboard"} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -106,11 +85,7 @@ export function DashboardSidebar() {
                 {adminNavItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild tooltip={item.title}>
-                      <NavLink
-                        to={item.url}
-                        className="hover:bg-sidebar-accent"
-                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      >
+                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium">
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </NavLink>
@@ -125,13 +100,27 @@ export function DashboardSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          {/* Support Buttons */}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Email Support">
+              <Button variant="ghost" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleEmailSupport}>
+                <Mail className="h-4 w-4" />
+                {!collapsed && <span>Email Support</span>}
+              </Button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="WhatsApp Support">
+              <Button variant="ghost" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleWhatsAppSupport}>
+                <MessageCircle className="h-4 w-4" />
+                {!collapsed && <span>WhatsApp Support</span>}
+              </Button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {/* Sign Out */}
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Sign Out">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={signOut}
-              >
+              <Button variant="ghost" className="w-full justify-start" onClick={signOut}>
                 <LogOut className="h-4 w-4" />
                 {!collapsed && <span>Sign Out</span>}
               </Button>

@@ -373,7 +373,9 @@ export type Database = {
           name: string
           owner_id: string
           phone: string | null
+          plan_type: string
           receipt_footer: string | null
+          staff_limit: number
           updated_at: string | null
         }
         Insert: {
@@ -385,7 +387,9 @@ export type Database = {
           name: string
           owner_id: string
           phone?: string | null
+          plan_type?: string
           receipt_footer?: string | null
+          staff_limit?: number
           updated_at?: string | null
         }
         Update: {
@@ -397,7 +401,9 @@ export type Database = {
           name?: string
           owner_id?: string
           phone?: string | null
+          plan_type?: string
           receipt_footer?: string | null
+          staff_limit?: number
           updated_at?: string | null
         }
         Relationships: []
@@ -430,6 +436,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "site_settings_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_credentials: {
+        Row: {
+          created_at: string | null
+          id: string
+          shop_id: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          shop_id: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          shop_id?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_credentials_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
             referencedRelation: "shops"

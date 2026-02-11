@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, shopName: string, displayName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, shopName: string, displayName?: string, planType?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -19,16 +19,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -38,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, shopName: string, displayName?: string) => {
+  const signUp = async (email: string, password: string, shopName: string, displayName?: string, planType?: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -54,22 +52,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
-      // If user is created, create shop and profile
       if (data.user) {
-        // Create shop
         const { data: shopData, error: shopError } = await supabase
           .from("shops")
           .insert({
             name: shopName,
             owner_id: data.user.id,
             currency: "Le",
+            plan_type: planType || "personal",
+            staff_limit: planType === "organization" ? 999999 : 5,
           })
           .select()
           .single();
 
         if (shopError) throw shopError;
 
-        // Create profile
         const { error: profileError } = await supabase
           .from("profiles")
           .insert({
@@ -79,7 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (profileError) throw profileError;
 
-        // Create owner role
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
@@ -99,11 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return { error: null };
     } catch (error) {

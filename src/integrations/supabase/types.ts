@@ -446,6 +446,7 @@ export type Database = {
       staff_credentials: {
         Row: {
           created_at: string | null
+          email: string | null
           id: string
           shop_id: string
           user_id: string
@@ -453,6 +454,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          email?: string | null
           id?: string
           shop_id: string
           user_id: string
@@ -460,6 +462,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          email?: string | null
           id?: string
           shop_id?: string
           user_id?: string

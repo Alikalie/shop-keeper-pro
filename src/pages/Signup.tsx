@@ -4,7 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Store, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Store, ArrowLeft, Eye, EyeOff, User, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -15,6 +16,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [planType, setPlanType] = useState<"personal" | "organization">("personal");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -22,41 +24,26 @@ const Signup = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Passwords don't match",
-        description: "Please make sure your passwords match.",
-      });
+      toast({ variant: "destructive", title: "Passwords don't match", description: "Please make sure your passwords match." });
       return;
     }
-    
+
     if (password.length < 8) {
-      toast({
-        variant: "destructive",
-        title: "Password too short",
-        description: "Password must be at least 8 characters.",
-      });
+      toast({ variant: "destructive", title: "Password too short", description: "Password must be at least 8 characters." });
       return;
     }
 
     setIsLoading(true);
 
-    const { error } = await signUp(email, password, shopName, displayName);
+    const { error } = await signUp(email, password, shopName, displayName, planType);
 
     if (error) {
-      toast({
-        variant: "destructive",
-        title: "Signup Failed",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Signup Failed", description: error.message });
       setIsLoading(false);
     } else {
-      toast({
-        title: "Account Created!",
-        description: "Please check your email to verify your account before logging in.",
-      });
+      toast({ title: "Account Created!", description: "You can now log in to your dashboard." });
       navigate("/login");
     }
   };
@@ -69,18 +56,12 @@ const Signup = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        {/* Back link */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
-        >
+        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Back to home
         </Link>
 
-        {/* Card */}
         <div className="bg-card rounded-2xl border border-border shadow-lg p-8">
-          {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-primary mb-4">
               <Store className="h-7 w-7 text-primary-foreground" />
@@ -89,59 +70,46 @@ const Signup = () => {
             <p className="text-muted-foreground mt-1">Start managing your business with ABAF-SHOP</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Plan Type Selection */}
+            <div className="space-y-3">
+              <Label>Business Type</Label>
+              <RadioGroup value={planType} onValueChange={(v) => setPlanType(v as "personal" | "organization")} className="grid grid-cols-2 gap-3">
+                <Label htmlFor="personal" className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-colors ${planType === "personal" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}>
+                  <RadioGroupItem value="personal" id="personal" className="sr-only" />
+                  <User className="h-6 w-6 text-primary" />
+                  <span className="font-medium text-sm">Personal</span>
+                  <span className="text-xs text-muted-foreground text-center">Up to 5 staff</span>
+                </Label>
+                <Label htmlFor="organization" className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-colors ${planType === "organization" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}>
+                  <RadioGroupItem value="organization" id="organization" className="sr-only" />
+                  <Building2 className="h-6 w-6 text-primary" />
+                  <span className="font-medium text-sm">Organization</span>
+                  <span className="text-xs text-muted-foreground text-center">Unlimited staff</span>
+                </Label>
+              </RadioGroup>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="shopName">Shop Name *</Label>
-              <Input
-                id="shopName"
-                type="text"
-                placeholder="My Retail Shop"
-                value={shopName}
-                onChange={(e) => setShopName(e.target.value)}
-                required
-              />
+              <Input id="shopName" placeholder="My Retail Shop" value={shopName} onChange={(e) => setShopName(e.target.value)} required />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="displayName">Your Name</Label>
-              <Input
-                id="displayName"
-                type="text"
-                placeholder="John Doe"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
+              <Input id="displayName" placeholder="John Doe" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <Input id="email" type="email" placeholder="your@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Password *</Label>
               <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
+                <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -149,14 +117,7 @@ const Signup = () => {
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password *</Label>
-              <Input
-                id="confirmPassword"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+              <Input id="confirmPassword" type={showPassword ? "text" : "password"} placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
@@ -164,12 +125,9 @@ const Signup = () => {
             </Button>
           </form>
 
-          {/* Login link */}
           <p className="text-center text-sm text-muted-foreground mt-6">
             Already have an account?{" "}
-            <Link to="/login" className="text-primary font-medium hover:underline">
-              Log in
-            </Link>
+            <Link to="/login" className="text-primary font-medium hover:underline">Log in</Link>
           </p>
         </div>
       </motion.div>

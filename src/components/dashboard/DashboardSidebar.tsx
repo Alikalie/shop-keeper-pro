@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, FileText, Settings,
-  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle,
+  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -29,7 +29,7 @@ const adminNavItems = [
 ];
 
 export function DashboardSidebar() {
-  const { signOut } = useAuth();
+  const { signOut, isSuperAdmin } = useAuth();
   const { shop, isOwner } = useShop();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -100,7 +100,16 @@ export function DashboardSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
-          {/* Support Buttons */}
+          {isSuperAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Super Admin Panel">
+                <NavLink to="/superadmin" className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent font-medium">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  {!collapsed && <span className="text-primary font-medium">Admin Panel</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Email Support">
               <Button variant="ghost" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleEmailSupport}>
@@ -117,7 +126,6 @@ export function DashboardSidebar() {
               </Button>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {/* Sign Out */}
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Sign Out">
               <Button variant="ghost" className="w-full justify-start" onClick={signOut}>

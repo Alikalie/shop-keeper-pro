@@ -31,8 +31,24 @@ const Login = () => {
       toast({ variant: "destructive", title: "Login Failed", description: error.message });
       setIsLoading(false);
     } else {
-      toast({ title: "Welcome back!", description: "You have successfully logged in." });
-      navigate("/dashboard");
+      // Check if user is super admin
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .eq("role", "super_admin")
+          .maybeSingle();
+
+        if (roleData) {
+          toast({ title: "Welcome, Super Admin!", description: "Redirecting to admin panel..." });
+          navigate("/superadmin");
+        } else {
+          toast({ title: "Welcome back!", description: "You have successfully logged in." });
+          navigate("/dashboard");
+        }
+      }
     }
   };
 

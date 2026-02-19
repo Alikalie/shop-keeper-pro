@@ -41,7 +41,7 @@ export default function POS() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; name: string; phone: string | null; address: string | null }[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -73,7 +73,7 @@ export default function POS() {
     if (!shop) return;
     const { data } = await supabase
       .from("customers")
-      .select("id, name")
+      .select("id, name, phone, address")
       .eq("shop_id", shop.id)
       .order("name");
     setCustomers(data || []);
@@ -210,11 +210,12 @@ export default function POS() {
       }
 
       // Generate and print receipt
-      const customerName = customers.find((c) => c.id === selectedCustomer)?.name;
+      const customer = customers.find((c) => c.id === selectedCustomer);
       const doc = generateReceiptPDF({
         shopName: shop.name,
         shopAddress: shop.address || undefined,
         shopPhone: shop.phone || undefined,
+        shopLogoUrl: shop.logo_url || undefined,
         receiptId,
         date: format(new Date(), "PPpp"),
         items: cart.map((item) => ({
@@ -226,7 +227,9 @@ export default function POS() {
         totalAmount: cartTotal,
         amountPaid: paid,
         paymentType,
-        customerName,
+        customerName: customer?.name,
+        customerPhone: customer?.phone || undefined,
+        customerAddress: customer?.address || undefined,
         currency: shop.currency || "Le",
         footer: shop.receipt_footer || undefined,
       });

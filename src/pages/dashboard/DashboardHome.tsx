@@ -115,9 +115,11 @@ export default function DashboardHome() {
         creditSales: stats.creditSales,
         transactionCount: stats.todayTransactions,
         averageTransaction: stats.todayTransactions > 0 ? stats.todaySales / stats.todayTransactions : 0,
+        totalProfit: 0,
       },
       salesByHour: [],
       topProducts: [],
+      topCustomers: [],
       staffPerformance: [],
       outstandingLoans: [],
     });

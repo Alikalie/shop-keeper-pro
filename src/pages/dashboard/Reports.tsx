@@ -144,9 +144,11 @@ export default function Reports() {
         creditSales: reportData.creditSales,
         transactionCount: reportData.transactionCount,
         averageTransaction: reportData.averageTransaction,
+        totalProfit: 0,
       },
       salesByHour: [],
-      topProducts: reportData.topProducts,
+      topCustomers: [],
+      topProducts: reportData.topProducts.map((p) => ({ ...p, profit: 0 })),
       staffPerformance: reportData.staffPerformance,
       outstandingLoans: reportData.outstandingLoans,
     });

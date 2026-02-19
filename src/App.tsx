@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { SuperAdminLayout } from "@/components/superadmin/SuperAdminLayout";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -22,6 +23,12 @@ import Reports from "./pages/dashboard/Reports";
 import UserManagement from "./pages/dashboard/UserManagement";
 import WebsiteSettings from "./pages/dashboard/WebsiteSettings";
 import ShopSettings from "./pages/dashboard/ShopSettings";
+import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
+import AdminShops from "./pages/superadmin/AdminShops";
+import AdminUsers from "./pages/superadmin/AdminUsers";
+import AdminLoans from "./pages/superadmin/AdminLoans";
+import AdminAnalytics from "./pages/superadmin/AdminAnalytics";
+import AdminSales from "./pages/superadmin/AdminSales";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +65,23 @@ const App = () => (
               <Route path="users" element={<UserManagement />} />
               <Route path="website" element={<WebsiteSettings />} />
               <Route path="settings" element={<ShopSettings />} />
+            </Route>
+
+            {/* Super Admin Routes */}
+            <Route
+              path="/superadmin"
+              element={
+                <ProtectedRoute>
+                  <SuperAdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<SuperAdminDashboard />} />
+              <Route path="shops" element={<AdminShops />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="loans" element={<AdminLoans />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="sales" element={<AdminSales />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -5,7 +5,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Store, Users, CreditCard, TrendingUp, LogOut, ShieldCheck, ShoppingCart,
+  LayoutDashboard, Store, Users, CreditCard, TrendingUp, LogOut, ShieldCheck, ShoppingCart, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +16,7 @@ const navItems = [
   { title: "All Users", url: "/superadmin/users", icon: Users },
   { title: "Loans & Credits", url: "/superadmin/loans", icon: CreditCard },
   { title: "Analytics", url: "/superadmin/analytics", icon: TrendingUp },
+  { title: "Site Management", url: "/superadmin/site-settings", icon: Globe },
 ];
 
 export function SuperAdminSidebar() {

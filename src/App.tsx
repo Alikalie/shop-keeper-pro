@@ -21,7 +21,7 @@ import Loans from "./pages/dashboard/Loans";
 import POS from "./pages/dashboard/POS";
 import Reports from "./pages/dashboard/Reports";
 import UserManagement from "./pages/dashboard/UserManagement";
-import WebsiteSettings from "./pages/dashboard/WebsiteSettings";
+
 import ShopSettings from "./pages/dashboard/ShopSettings";
 import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
 import AdminShops from "./pages/superadmin/AdminShops";
@@ -64,7 +64,7 @@ const App = () => (
               <Route path="loans" element={<Loans />} />
               <Route path="reports" element={<Reports />} />
               <Route path="users" element={<UserManagement />} />
-              <Route path="website" element={<WebsiteSettings />} />
+              
               <Route path="settings" element={<ShopSettings />} />
             </Route>
 

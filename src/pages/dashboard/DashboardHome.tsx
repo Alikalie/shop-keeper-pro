@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useShop } from "@/hooks/useShop";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DollarSign,
@@ -11,6 +13,7 @@ import {
   TrendingUp,
   FileText,
   Download,
+  Clock,
 } from "lucide-react";
 import { generateDailyReportPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";
@@ -30,6 +33,15 @@ interface LowStockProduct {
   quantity_on_hand: number;
   low_stock_level: number;
 }
+interface RecentSale {
+  id: string;
+  receipt_id: string | null;
+  total_amount: number;
+  payment_type: string;
+  created_at: string | null;
+  staff_id: string;
+  staff_name?: string;
+}
 
 export default function DashboardHome() {
   const { shop, isOwner, loading: shopLoading } = useShop();
@@ -42,6 +54,7 @@ export default function DashboardHome() {
     creditSales: 0,
   });
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
+  const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -93,6 +106,29 @@ export default function DashboardHome() {
       });
 
       setLowStockProducts(lowStock || []);
+
+      // Fetch recent sales (last 10)
+      if (isOwner) {
+        const { data: recentData } = await supabase
+          .from("sales")
+          .select("id, receipt_id, total_amount, payment_type, created_at, staff_id")
+          .eq("shop_id", shop.id)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (recentData && recentData.length > 0) {
+          const staffIds = [...new Set(recentData.map(s => s.staff_id))];
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("user_id", staffIds);
+
+          const nameMap: Record<string, string> = {};
+          profiles?.forEach(p => { nameMap[p.user_id] = p.display_name || "Unknown"; });
+
+          setRecentSales(recentData.map(s => ({ ...s, staff_name: nameMap[s.staff_id] || "Unknown" })));
+        }
+      }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -275,6 +311,46 @@ export default function DashboardHome() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Activity - Owner only */}
+      {isOwner && recentSales.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Recent Staff Activity
+            </CardTitle>
+            <CardDescription>Latest sales across all staff</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentSales.map((sale) => (
+                <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <ShoppingCart className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{sale.staff_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sale.created_at ? format(new Date(sale.created_at), "MMM dd, HH:mm") : "N/A"}
+                        {" • "}
+                        <span className="font-mono">{sale.receipt_id || sale.id.slice(0, 8)}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold">{shop.currency} {sale.total_amount.toLocaleString()}</p>
+                    <Badge variant={sale.payment_type === "cash" ? "default" : "secondary"} className="text-xs">
+                      {sale.payment_type}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -3,18 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useShop } from "@/hooks/useShop";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Download, Eye, Search } from "lucide-react";
+import { FileText, Download, Search, Calendar, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { generateReceiptPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";
 
@@ -33,10 +32,13 @@ interface SaleWithItems {
     quantity: number;
     unit_price: number;
     total: number;
-    product: {
-      name: string;
-    };
+    product: { name: string };
   }[];
+}
+
+interface StaffInfo {
+  user_id: string;
+  display_name: string;
 }
 
 export default function SalesHistory() {
@@ -45,12 +47,42 @@ export default function SalesHistory() {
   const [sales, setSales] = useState<SaleWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [staffFilter, setStaffFilter] = useState("all");
+  const [staffList, setStaffList] = useState<StaffInfo[]>([]);
+  const [staffNames, setStaffNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (shop) {
       fetchSales();
+      if (isOwner) fetchStaff();
     }
   }, [shop, isOwner]);
+
+  const fetchStaff = async () => {
+    if (!shop) return;
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("shop_id", shop.id);
+
+    const userIds = [...(roles || []).map(r => r.user_id), shop.owner_id];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, display_name")
+      .in("user_id", userIds);
+
+    const list: StaffInfo[] = (profiles || []).map(p => ({
+      user_id: p.user_id,
+      display_name: p.display_name || "Unknown",
+    }));
+    setStaffList(list);
+
+    const names: Record<string, string> = {};
+    list.forEach(s => { names[s.user_id] = s.display_name; });
+    setStaffNames(names);
+  };
 
   const fetchSales = async () => {
     if (!shop || !user) return;
@@ -68,19 +100,16 @@ export default function SalesHistory() {
         .eq("shop_id", shop.id)
         .order("created_at", { ascending: false });
 
-      // Staff can only see their own sales
       if (!isOwner) {
         query = query.eq("staff_id", user.id);
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      // Transform data to expected format
       const transformedSales: SaleWithItems[] = (data || []).map((sale) => ({
         ...sale,
-        sale_items: (sale.sale_items || []).map((item: { id: string; quantity: number; unit_price: number; total: number; products: { name: string } | null }) => ({
+        sale_items: (sale.sale_items || []).map((item: any) => ({
           id: item.id,
           quantity: item.quantity,
           unit_price: item.unit_price,
@@ -99,7 +128,6 @@ export default function SalesHistory() {
 
   const handleDownloadReceipt = (sale: SaleWithItems) => {
     if (!shop) return;
-
     const doc = generateReceiptPDF({
       shopName: shop.name,
       shopAddress: shop.address || undefined,
@@ -118,15 +146,30 @@ export default function SalesHistory() {
       currency: shop.currency || "Le",
       footer: shop.receipt_footer || undefined,
     });
-
     downloadPDF(doc, `receipt-${sale.receipt_id || sale.id.slice(0, 8)}.pdf`);
   };
 
-  const filteredSales = sales.filter(
-    (s) =>
+  const filteredSales = sales.filter((s) => {
+    const matchesSearch =
       s.receipt_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      s.id.toLowerCase().includes(searchQuery.toLowerCase());
+
+    let matchesDate = true;
+    if (dateFrom && s.created_at) {
+      matchesDate = new Date(s.created_at) >= new Date(dateFrom);
+    }
+    if (dateTo && s.created_at && matchesDate) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      matchesDate = new Date(s.created_at) <= to;
+    }
+
+    const matchesStaff = staffFilter === "all" || s.staff_id === staffFilter;
+
+    return matchesSearch && matchesDate && matchesStaff;
+  });
+
+  const totalFiltered = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
 
   if (loading) {
     return (
@@ -147,26 +190,61 @@ export default function SalesHistory() {
         </div>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Transactions
-              </CardTitle>
-              <CardDescription>{sales.length} sales recorded</CardDescription>
-            </div>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <CardContent className="pt-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1 text-sm"><Search className="h-3 w-3" /> Search</Label>
               <Input
                 placeholder="Search by receipt ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
               />
             </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1 text-sm"><Calendar className="h-3 w-3" /> From Date</Label>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1 text-sm"><Calendar className="h-3 w-3" /> To Date</Label>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </div>
+            {isOwner && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1 text-sm"><User className="h-3 w-3" /> Staff</Label>
+                <Select value={staffFilter} onValueChange={setStaffFilter}>
+                  <SelectTrigger><SelectValue placeholder="All staff" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Staff</SelectItem>
+                    {staffList.map(s => (
+                      <SelectItem key={s.user_id} value={s.user_id}>{s.display_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+          {(dateFrom || dateTo || staffFilter !== "all" || searchQuery) && (
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredSales.length} sales • Total: {shop?.currency} {totalFiltered.toLocaleString()}
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setStaffFilter("all"); setSearchQuery(""); }}>
+                Clear Filters
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Transactions
+          </CardTitle>
+          <CardDescription>{filteredSales.length} sales found</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -174,6 +252,7 @@ export default function SalesHistory() {
               <TableRow>
                 <TableHead>Receipt ID</TableHead>
                 <TableHead>Date</TableHead>
+                {isOwner && <TableHead>Staff</TableHead>}
                 <TableHead>Items</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -187,17 +266,18 @@ export default function SalesHistory() {
                     {sale.receipt_id || sale.id.slice(0, 8)}
                   </TableCell>
                   <TableCell>
-                    {sale.created_at
-                      ? format(new Date(sale.created_at), "MMM dd, yyyy HH:mm")
-                      : "N/A"}
+                    {sale.created_at ? format(new Date(sale.created_at), "MMM dd, yyyy HH:mm") : "N/A"}
                   </TableCell>
+                  {isOwner && (
+                    <TableCell className="text-sm">
+                      {staffNames[sale.staff_id] || sale.staff_id.slice(0, 8)}
+                    </TableCell>
+                  )}
                   <TableCell>
                     {sale.sale_items.length} item{sale.sale_items.length !== 1 ? "s" : ""}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={sale.payment_type === "cash" ? "default" : "secondary"}
-                    >
+                    <Badge variant={sale.payment_type === "cash" ? "default" : "secondary"}>
                       {sale.payment_type}
                     </Badge>
                   </TableCell>
@@ -205,12 +285,7 @@ export default function SalesHistory() {
                     {shop?.currency} {sale.total_amount.toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDownloadReceipt(sale)}
-                      title="Download Receipt PDF"
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => handleDownloadReceipt(sale)} title="Download Receipt PDF">
                       <Download className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -218,8 +293,8 @@ export default function SalesHistory() {
               ))}
               {filteredSales.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    {searchQuery ? "No sales match your search" : "No sales recorded yet"}
+                  <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-muted-foreground py-8">
+                    {searchQuery || dateFrom || dateTo || staffFilter !== "all" ? "No sales match your filters" : "No sales recorded yet"}
                   </TableCell>
                 </TableRow>
               )}

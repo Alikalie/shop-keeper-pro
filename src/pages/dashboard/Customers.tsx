@@ -24,6 +24,7 @@ import {
 import { useShop } from "@/hooks/useShop";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Pencil, Users, Search, Phone, MapPin } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -41,6 +42,7 @@ export default function Customers() {
     name: "",
     phone: "",
     address: "",
+    gender: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -76,6 +78,7 @@ export default function Customers() {
         name: customer.name,
         phone: customer.phone || "",
         address: customer.address || "",
+        gender: (customer as any).gender || "",
       });
     } else {
       setEditingCustomer(null);
@@ -83,6 +86,7 @@ export default function Customers() {
         name: "",
         phone: "",
         address: "",
+        gender: "",
       });
     }
     setIsDialogOpen(true);
@@ -101,10 +105,11 @@ export default function Customers() {
     setIsSubmitting(true);
 
     try {
-      const customerData = {
+      const customerData: any = {
         name: formData.name.trim(),
         phone: formData.phone.trim() || null,
         address: formData.address.trim() || null,
+        gender: formData.gender || null,
         shop_id: shop.id,
       };
 
@@ -200,6 +205,18 @@ export default function Customers() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Gender</Label>
+                <Select value={formData.gender} onValueChange={(val) => setFormData({ ...formData, gender: val === "none" ? "" : val })}>
+                  <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not specified</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
                 <Textarea
                   id="address"
@@ -248,6 +265,7 @@ export default function Customers() {
             <TableHeader>
               <TableRow>
                 <TableHead>Customer</TableHead>
+                <TableHead>Gender</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead className="text-right">Outstanding</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -273,6 +291,9 @@ export default function Customers() {
                         )}
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell className="capitalize text-sm">
+                    {(customer as any).gender || "—"}
                   </TableCell>
                   <TableCell>
                     {customer.phone ? (
@@ -306,7 +327,7 @@ export default function Customers() {
               ))}
               {filteredCustomers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     {searchQuery ? "No customers match your search" : "No customers yet. Add your first customer!"}
                   </TableCell>
                 </TableRow>

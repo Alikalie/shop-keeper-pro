@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, FileText, Settings,
-  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck,
+  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck, User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -123,6 +123,14 @@ export function DashboardSidebar() {
                 <MessageCircle className="h-4 w-4" />
                 {!collapsed && <span>WhatsApp Support</span>}
               </Button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="My Profile">
+              <NavLink to="/dashboard/profile" className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent font-medium">
+                <User className="h-4 w-4" />
+                {!collapsed && <span>My Profile</span>}
+              </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

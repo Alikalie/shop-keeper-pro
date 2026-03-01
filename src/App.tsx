@@ -21,7 +21,7 @@ import Loans from "./pages/dashboard/Loans";
 import POS from "./pages/dashboard/POS";
 import Reports from "./pages/dashboard/Reports";
 import UserManagement from "./pages/dashboard/UserManagement";
-
+import Profile from "./pages/dashboard/Profile";
 import ShopSettings from "./pages/dashboard/ShopSettings";
 import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
 import AdminShops from "./pages/superadmin/AdminShops";
@@ -66,6 +66,7 @@ const App = () => (
               <Route path="users" element={<UserManagement />} />
               
               <Route path="settings" element={<ShopSettings />} />
+              <Route path="profile" element={<Profile />} />
             </Route>
 
             {/* Super Admin Routes */}

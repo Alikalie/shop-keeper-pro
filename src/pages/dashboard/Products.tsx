@@ -147,7 +147,7 @@ export default function Products() {
         selling_price: parseFloat(formData.selling_price),
         quantity_on_hand: parseInt(formData.quantity_on_hand) || 0,
         low_stock_level: parseInt(formData.low_stock_level) || 10,
-        category_id: formData.category_id || null,
+        category_id: formData.category_id && formData.category_id !== "none" ? formData.category_id : null,
         shop_id: shop.id,
       };
 
@@ -327,7 +327,7 @@ export default function Products() {
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Uncategorized</SelectItem>
+                      <SelectItem value="none">Uncategorized</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}

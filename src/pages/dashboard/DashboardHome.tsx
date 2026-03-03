@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { generateDailyReportPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";
+import { Link } from "react-router-dom";
 
 interface DashboardStats {
   todaySales: number;
@@ -259,22 +260,22 @@ export default function DashboardHome() {
           </CardHeader>
           <CardContent className="grid gap-3">
             <Button className="w-full justify-start" variant="outline" asChild>
-              <a href="/dashboard/pos">
+              <Link to="/dashboard/pos">
                 <ShoppingCart className="mr-2 h-4 w-4" />
                 New Sale
-              </a>
+              </Link>
             </Button>
             <Button className="w-full justify-start" variant="outline" asChild>
-              <a href="/dashboard/products">
+              <Link to="/dashboard/products">
                 <FileText className="mr-2 h-4 w-4" />
                 Add Product
-              </a>
+              </Link>
             </Button>
             <Button className="w-full justify-start" variant="outline" asChild>
-              <a href="/dashboard/customers">
+              <Link to="/dashboard/customers">
                 <Users className="mr-2 h-4 w-4" />
                 Add Customer
-              </a>
+              </Link>
             </Button>
           </CardContent>
         </Card>

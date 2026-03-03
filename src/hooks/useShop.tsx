@@ -33,37 +33,32 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
 
-      // First check if user is an owner
-      const { data: ownedShop } = await supabase
-        .from("shops")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      // Fetch both in parallel
+      const [ownedShopRes, staffRoleRes] = await Promise.all([
+        supabase.from("shops").select("*").eq("owner_id", user.id).maybeSingle(),
+        supabase.from("user_roles").select("*, shops(*)").eq("user_id", user.id).maybeSingle(),
+      ]);
 
-      if (ownedShop) {
-        setShop(ownedShop);
-        
-        // Get user role
-        const { data: role } = await supabase
-          .from("user_roles")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("shop_id", ownedShop.id)
-          .maybeSingle();
-        
-        setUserRole(role);
-      } else {
-        // Check if user is staff
-        const { data: staffRole } = await supabase
-          .from("user_roles")
-          .select("*, shops(*)")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (staffRole && staffRole.shops) {
-          setShop(staffRole.shops as unknown as Shop);
-          setUserRole(staffRole);
+      if (ownedShopRes.data) {
+        setShop(ownedShopRes.data);
+        // Get role from the parallel result or fetch separately
+        if (staffRoleRes.data && staffRoleRes.data.shop_id === ownedShopRes.data.id) {
+          setUserRole(staffRoleRes.data);
+        } else {
+          const { data: role } = await supabase
+            .from("user_roles")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("shop_id", ownedShopRes.data.id)
+            .maybeSingle();
+          setUserRole(role);
         }
+      } else if (staffRoleRes.data && staffRoleRes.data.shops) {
+        setShop(staffRoleRes.data.shops as unknown as Shop);
+        setUserRole(staffRoleRes.data);
+      } else {
+        setShop(null);
+        setUserRole(null);
       }
     } catch (error) {
       console.error("Error fetching shop data:", error);

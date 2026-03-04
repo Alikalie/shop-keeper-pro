@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, FileText, Settings,
-  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck, User,
+  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck, User, ArrowDownUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +19,7 @@ const mainNavItems = [
   { title: "Customers", url: "/dashboard/customers", icon: Users },
   { title: "Sales History", url: "/dashboard/sales", icon: FileText },
   { title: "Loans", url: "/dashboard/loans", icon: CreditCard },
+  { title: "Change Owed", url: "/dashboard/overpayments", icon: ArrowDownUp },
 ];
 
 const adminNavItems = [

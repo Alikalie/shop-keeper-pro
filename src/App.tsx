@@ -18,6 +18,7 @@ import Categories from "./pages/dashboard/Categories";
 import Customers from "./pages/dashboard/Customers";
 import SalesHistory from "./pages/dashboard/SalesHistory";
 import Loans from "./pages/dashboard/Loans";
+import Overpayments from "./pages/dashboard/Overpayments";
 import POS from "./pages/dashboard/POS";
 import Reports from "./pages/dashboard/Reports";
 import UserManagement from "./pages/dashboard/UserManagement";
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="customers" element={<Customers />} />
               <Route path="sales" element={<SalesHistory />} />
               <Route path="loans" element={<Loans />} />
+              <Route path="overpayments" element={<Overpayments />} />
               <Route path="reports" element={<Reports />} />
               <Route path="users" element={<UserManagement />} />
               

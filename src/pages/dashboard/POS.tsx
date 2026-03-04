@@ -280,6 +280,22 @@ export default function POS() {
         }
       }
 
+      // Record overpayment (change owed to customer)
+      if (paid > cartTotal) {
+        const changeAmount = paid - cartTotal;
+        const customer = customers.find((c) => c.id === selectedCustomer);
+        await supabase.from("overpayments").insert({
+          shop_id: shop.id,
+          customer_id: selectedCustomer && selectedCustomer !== "walkin" ? selectedCustomer : null,
+          customer_name: customer?.name || "Walk-in Customer",
+          sale_id: sale.id,
+          receipt_id: newReceiptId,
+          amount: changeAmount,
+          status: "pending",
+          notes: `Change of ${shop.currency || "Le"} ${changeAmount.toLocaleString()} from ${paymentLabel} payment`,
+        });
+      }
+
       // Generate receipt (don't auto-print, show in modal)
       const customer = customers.find((c) => c.id === selectedCustomer);
       const doc = generateReceiptPDF({

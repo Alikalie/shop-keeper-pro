@@ -180,6 +180,70 @@ export type Database = {
           },
         ]
       }
+      overpayments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          id: string
+          notes: string | null
+          receipt_id: string | null
+          resolved_at: string | null
+          sale_id: string | null
+          shop_id: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          id?: string
+          notes?: string | null
+          receipt_id?: string | null
+          resolved_at?: string | null
+          sale_id?: string | null
+          shop_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          id?: string
+          notes?: string | null
+          receipt_id?: string | null
+          resolved_at?: string | null
+          sale_id?: string | null
+          shop_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overpayments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overpayments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overpayments_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           buying_price: number

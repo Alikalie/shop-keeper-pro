@@ -254,7 +254,7 @@ export default function POS() {
       }
 
       // If credit sale, create loan
-      if (paymentType === "credit" && selectedCustomer && selectedCustomer !== "walkin" && paid < cartTotal) {
+      if (paymentType === "credit" && selectedCustomer && selectedCustomer !== "walkin" && paid <= cartTotal) {
         await supabase.from("loans").insert({
           shop_id: shop.id,
           customer_id: selectedCustomer,
@@ -472,8 +472,13 @@ export default function POS() {
                       <Button
                         variant={paymentType === "credit" ? "default" : "outline"}
                         className="flex-1"
-                        onClick={() => setPaymentType("credit")}
-                        disabled={!selectedCustomer || selectedCustomer === "walkin"}
+                        onClick={() => {
+                          if (!selectedCustomer || selectedCustomer === "walkin") {
+                            toast({ variant: "destructive", title: "Select a Customer", description: "Credit sales require a registered customer. Please select one from the dropdown above." });
+                            return;
+                          }
+                          setPaymentType("credit");
+                        }}
                         size="sm"
                       >
                         <CreditCard className="mr-1 h-4 w-4" />

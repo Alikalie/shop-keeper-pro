@@ -1,6 +1,14 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+interface TransferDetails {
+  transferType: string;
+  providerName: string;
+  accountNumber: string;
+  transactionRef: string;
+  senderName: string;
+}
+
 interface ReceiptData {
   shopName: string;
   shopAddress?: string;
@@ -23,6 +31,7 @@ interface ReceiptData {
   staffName?: string;
   currency: string;
   footer?: string;
+  transferDetails?: TransferDetails;
 }
 
 // A5 landscape = 210mm x 148mm, half = one receipt slot of 105mm x 148mm
@@ -170,7 +179,12 @@ export function generateReceiptPDF(data: ReceiptData): jsPDF {
   doc.setFontSize(9);
   doc.text(`Paid: ${data.currency} ${data.amountPaid.toLocaleString()}`, pageWidth - margin, y, { align: "right" });
   y += 4;
-  doc.text(`Payment: ${data.paymentType.toUpperCase()}`, pageWidth - margin, y, { align: "right" });
+
+  // Payment type label
+  const paymentLabel = data.paymentType.startsWith("transfer")
+    ? data.paymentType.replace("-", " - ").toUpperCase()
+    : data.paymentType.toUpperCase();
+  doc.text(`Payment: ${paymentLabel}`, pageWidth - margin, y, { align: "right" });
   y += 4;
 
   const change = data.amountPaid - data.totalAmount;
@@ -183,11 +197,41 @@ export function generateReceiptPDF(data: ReceiptData): jsPDF {
     y += 5;
   }
 
-  // ── Footer ──
+  // ── Transfer Details ──
+  if (data.transferDetails) {
+    doc.setDrawColor(...GREEN);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 3;
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...GREEN);
+    const td = data.transferDetails;
+    const typeLabel = td.transferType === "mobile" ? "Mobile Money" : "Bank Transfer";
+    doc.text(`Transfer Type: ${typeLabel}`, margin, y);
+    y += 4;
+    doc.text(`Provider: ${td.providerName}`, margin, y);
+    y += 4;
+    if (td.accountNumber) {
+      const acctLabel = td.transferType === "mobile" ? "Phone" : "Account";
+      doc.text(`${acctLabel}: ${td.accountNumber}`, margin, y);
+      y += 4;
+    }
+    doc.text(`Ref: ${td.transactionRef}`, margin, y);
+    y += 4;
+    if (td.senderName) {
+      doc.text(`Sender: ${td.senderName}`, margin, y);
+      y += 4;
+    }
+  }
+
+  // ── Footer (tight border) ──
+  y += 1;
   doc.setDrawColor(...GREEN);
   doc.setLineWidth(0.5);
   doc.line(margin, y, pageWidth - margin, y);
-  y += 4;
+  y += 3;
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");

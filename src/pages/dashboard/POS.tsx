@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,6 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useShop } from "@/hooks/useShop";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,8 +32,10 @@ import {
   CreditCard,
   Banknote,
   X,
+  ArrowRightLeft,
+  Download,
 } from "lucide-react";
-import { generateReceiptPDF, downloadPDF, printPDF } from "@/lib/pdf";
+import { generateReceiptPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -34,6 +44,14 @@ type Product = Tables<"products">;
 interface CartItem {
   product: Product;
   quantity: number;
+}
+
+interface TransferDetails {
+  transferType: string; // "mobile" | "bank"
+  providerName: string;
+  accountNumber: string;
+  transactionRef: string;
+  senderName: string;
 }
 
 export default function POS() {
@@ -49,6 +67,20 @@ export default function POS() {
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Transfer details
+  const [transferDetails, setTransferDetails] = useState<TransferDetails>({
+    transferType: "mobile",
+    providerName: "",
+    accountNumber: "",
+    transactionRef: "",
+    senderName: "",
+  });
+
+  // Receipt modal
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptDoc, setReceiptDoc] = useState<any>(null);
+  const [receiptId, setReceiptIdState] = useState("");
 
   useEffect(() => {
     if (shop) {
@@ -139,15 +171,40 @@ export default function POS() {
     if (!shop || !user || cart.length === 0) return;
 
     const paid = parseFloat(amountPaid) || 0;
+
+    // Cash requires full payment
     if (paymentType === "cash" && paid < cartTotal) {
       toast({ variant: "destructive", title: "Insufficient Payment", description: `Amount paid (${paid}) is less than total (${cartTotal})` });
       return;
     }
 
+    // Credit requires a registered customer
+    if (paymentType === "credit" && (!selectedCustomer || selectedCustomer === "walkin")) {
+      toast({ variant: "destructive", title: "Customer Required", description: "Please select a registered customer for credit sales" });
+      return;
+    }
+
+    // Transfer requires full payment and details
+    if (paymentType === "transfer") {
+      if (paid < cartTotal) {
+        toast({ variant: "destructive", title: "Insufficient Payment", description: "Transfer amount must cover the full total" });
+        return;
+      }
+      if (!transferDetails.providerName || !transferDetails.transactionRef) {
+        toast({ variant: "destructive", title: "Transfer Details Required", description: "Please fill in provider name and transaction reference" });
+        return;
+      }
+    }
+
     setIsProcessing(true);
 
     try {
-      const receiptId = generateReceiptId();
+      const newReceiptId = generateReceiptId();
+
+      // Build payment type label for storage
+      const paymentLabel = paymentType === "transfer"
+        ? `transfer-${transferDetails.transferType}`
+        : paymentType;
 
       // Create sale
       const { data: sale, error: saleError } = await supabase
@@ -155,11 +212,11 @@ export default function POS() {
         .insert({
           shop_id: shop.id,
           staff_id: user.id,
-          customer_id: selectedCustomer || null,
+          customer_id: selectedCustomer && selectedCustomer !== "walkin" ? selectedCustomer : null,
           total_amount: cartTotal,
-          amount_paid: paymentType === "credit" ? paid : paid,
-          payment_type: paymentType,
-          receipt_id: receiptId,
+          amount_paid: paid,
+          payment_type: paymentLabel,
+          receipt_id: newReceiptId,
           status: paymentType === "credit" && paid < cartTotal ? "partial" : "completed",
         })
         .select()
@@ -184,7 +241,6 @@ export default function POS() {
         const newQty = (item.product.quantity_on_hand || 0) - item.quantity;
         await supabase.from("products").update({ quantity_on_hand: newQty }).eq("id", item.product.id);
 
-        // Record stock movement
         await supabase.from("stock_movements").insert({
           product_id: item.product.id,
           shop_id: shop.id,
@@ -193,12 +249,12 @@ export default function POS() {
           recorded_by: user.id,
           reference_id: sale.id,
           reference_type: "sale",
-          notes: `Sale ${receiptId}`,
+          notes: `Sale ${newReceiptId}`,
         });
       }
 
       // If credit sale, create loan
-      if (paymentType === "credit" && selectedCustomer && paid < cartTotal) {
+      if (paymentType === "credit" && selectedCustomer && selectedCustomer !== "walkin" && paid < cartTotal) {
         await supabase.from("loans").insert({
           shop_id: shop.id,
           customer_id: selectedCustomer,
@@ -207,16 +263,31 @@ export default function POS() {
           amount_paid: paid,
           status: paid > 0 ? "partial" : "unpaid",
         });
+
+        // Update customer outstanding balance
+        const balanceDue = cartTotal - paid;
+        const customer = customers.find((c) => c.id === selectedCustomer);
+        if (customer) {
+          const { data: custData } = await supabase
+            .from("customers")
+            .select("outstanding_balance")
+            .eq("id", selectedCustomer)
+            .single();
+          const currentBalance = custData?.outstanding_balance || 0;
+          await supabase.from("customers").update({
+            outstanding_balance: currentBalance + balanceDue,
+          }).eq("id", selectedCustomer);
+        }
       }
 
-      // Generate and print receipt
+      // Generate receipt (don't auto-print, show in modal)
       const customer = customers.find((c) => c.id === selectedCustomer);
       const doc = generateReceiptPDF({
         shopName: shop.name,
         shopAddress: shop.address || undefined,
         shopPhone: shop.phone || undefined,
         shopLogoUrl: shop.logo_url || undefined,
-        receiptId,
+        receiptId: newReceiptId,
         date: format(new Date(), "PPpp"),
         items: cart.map((item) => ({
           name: item.product.name,
@@ -226,23 +297,27 @@ export default function POS() {
         })),
         totalAmount: cartTotal,
         amountPaid: paid,
-        paymentType,
+        paymentType: paymentLabel,
         customerName: customer?.name,
         customerPhone: customer?.phone || undefined,
         customerAddress: customer?.address || undefined,
         currency: shop.currency || "Le",
         footer: shop.receipt_footer || undefined,
+        transferDetails: paymentType === "transfer" ? transferDetails : undefined,
       });
 
-      printPDF(doc);
+      setReceiptDoc(doc);
+      setReceiptIdState(newReceiptId);
+      setReceiptModalOpen(true);
 
-      toast({ title: "Sale Completed!", description: `Receipt: ${receiptId}` });
+      toast({ title: "Sale Completed!", description: `Receipt: ${newReceiptId}` });
 
-      // Reset
+      // Reset cart
       setCart([]);
       setAmountPaid("");
       setSelectedCustomer("");
       setPaymentType("cash");
+      setTransferDetails({ transferType: "mobile", providerName: "", accountNumber: "", transactionRef: "", senderName: "" });
       fetchProducts();
     } catch (error) {
       console.error("Checkout error:", error);
@@ -250,6 +325,25 @@ export default function POS() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handlePrintReceipt = () => {
+    if (!receiptDoc) return;
+    const blob = receiptDoc.output("blob");
+    const url = URL.createObjectURL(blob);
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    };
+  };
+
+  const handleDownloadReceipt = () => {
+    if (!receiptDoc) return;
+    downloadPDF(receiptDoc, `receipt-${receiptId}.pdf`);
   };
 
   if (loading) {
@@ -364,11 +458,13 @@ export default function POS() {
                       </SelectContent>
                     </Select>
 
+                    {/* Payment Type Buttons */}
                     <div className="flex gap-2">
                       <Button
                         variant={paymentType === "cash" ? "default" : "outline"}
                         className="flex-1"
                         onClick={() => setPaymentType("cash")}
+                        size="sm"
                       >
                         <Banknote className="mr-1 h-4 w-4" />
                         Cash
@@ -378,15 +474,104 @@ export default function POS() {
                         className="flex-1"
                         onClick={() => setPaymentType("credit")}
                         disabled={!selectedCustomer || selectedCustomer === "walkin"}
+                        size="sm"
                       >
                         <CreditCard className="mr-1 h-4 w-4" />
                         Credit
                       </Button>
+                      <Button
+                        variant={paymentType === "transfer" ? "default" : "outline"}
+                        className="flex-1"
+                        onClick={() => setPaymentType("transfer")}
+                        size="sm"
+                      >
+                        <ArrowRightLeft className="mr-1 h-4 w-4" />
+                        Transfer
+                      </Button>
                     </div>
+
+                    {/* Credit info */}
+                    {paymentType === "credit" && (
+                      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm space-y-1">
+                        <p className="font-medium text-amber-800 dark:text-amber-200">Credit Sale</p>
+                        <p className="text-amber-700 dark:text-amber-300 text-xs">
+                          Enter partial payment or leave empty for full credit. A loan will be created for the remaining balance.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Transfer form */}
+                    {paymentType === "transfer" && (
+                      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-3">
+                        <p className="font-medium text-blue-800 dark:text-blue-200 text-sm">Transfer Details</p>
+                        
+                        <div className="flex gap-2">
+                          <Button
+                            variant={transferDetails.transferType === "mobile" ? "default" : "outline"}
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => setTransferDetails({ ...transferDetails, transferType: "mobile" })}
+                          >
+                            Mobile Money
+                          </Button>
+                          <Button
+                            variant={transferDetails.transferType === "bank" ? "default" : "outline"}
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => setTransferDetails({ ...transferDetails, transferType: "bank" })}
+                          >
+                            Bank Transfer
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div>
+                            <Label className="text-xs">
+                              {transferDetails.transferType === "mobile" ? "Mobile Provider" : "Bank Name"} *
+                            </Label>
+                            <Input
+                              placeholder={transferDetails.transferType === "mobile" ? "e.g. Orange Money, Africell" : "e.g. Sierra Leone Commercial Bank"}
+                              value={transferDetails.providerName}
+                              onChange={(e) => setTransferDetails({ ...transferDetails, providerName: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">
+                              {transferDetails.transferType === "mobile" ? "Phone Number" : "Account Number"}
+                            </Label>
+                            <Input
+                              placeholder={transferDetails.transferType === "mobile" ? "e.g. +232 76 000000" : "e.g. 0012345678"}
+                              value={transferDetails.accountNumber}
+                              onChange={(e) => setTransferDetails({ ...transferDetails, accountNumber: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Transaction Reference / ID *</Label>
+                            <Input
+                              placeholder="e.g. TXN-123456789"
+                              value={transferDetails.transactionRef}
+                              onChange={(e) => setTransferDetails({ ...transferDetails, transactionRef: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Sender Name</Label>
+                            <Input
+                              placeholder="Name of person who sent payment"
+                              value={transferDetails.senderName}
+                              onChange={(e) => setTransferDetails({ ...transferDetails, senderName: e.target.value })}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <Input
                       type="number"
-                      placeholder={`Amount Paid (${shop?.currency})`}
+                      placeholder={paymentType === "credit" ? `Partial Payment (${shop?.currency}) - optional` : `Amount Paid (${shop?.currency})`}
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(e.target.value)}
                     />
@@ -397,6 +582,12 @@ export default function POS() {
                       </p>
                     )}
 
+                    {paymentType === "credit" && (
+                      <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                        Balance Due: {shop?.currency} {(cartTotal - (parseFloat(amountPaid) || 0)).toLocaleString()}
+                      </p>
+                    )}
+
                     <Button
                       className="w-full"
                       size="lg"
@@ -404,7 +595,7 @@ export default function POS() {
                       disabled={isProcessing || cart.length === 0}
                     >
                       <Printer className="mr-2 h-4 w-4" />
-                      {isProcessing ? "Processing..." : "Complete Sale & Print"}
+                      {isProcessing ? "Processing..." : "Complete Sale"}
                     </Button>
                   </div>
                 </>
@@ -413,6 +604,38 @@ export default function POS() {
           </Card>
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      <Dialog open={receiptModalOpen} onOpenChange={setReceiptModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Receipt Ready - {receiptId}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-4 space-y-2">
+            <div className="text-4xl">🧾</div>
+            <p className="text-sm text-muted-foreground">
+              Your sale has been completed successfully. Would you like to print or download the receipt?
+            </p>
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setReceiptModalOpen(false)} className="flex-1">
+              <X className="mr-1 h-4 w-4" />
+              Close
+            </Button>
+            <Button variant="outline" onClick={handleDownloadReceipt} className="flex-1">
+              <Download className="mr-1 h-4 w-4" />
+              Download
+            </Button>
+            <Button onClick={handlePrintReceipt} className="flex-1">
+              <Printer className="mr-1 h-4 w-4" />
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

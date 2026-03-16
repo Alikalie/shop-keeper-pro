@@ -1,15 +1,18 @@
+import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useShop } from "@/hooks/useShop";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, FileText, Settings,
-  UserCog, Globe, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck, User, ArrowDownUp,
+  UserCog, LogOut, Store, FolderOpen, TrendingUp, CreditCard, Mail, MessageCircle, ShieldCheck, User, ArrowDownUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -32,7 +35,52 @@ export function DashboardSidebar() {
   const { signOut, isSuperAdmin } = useAuth();
   const { shop, isOwner } = useShop();
   const { state } = useSidebar();
+  const [pendingOverpayments, setPendingOverpayments] = useState(0);
   const collapsed = state === "collapsed";
+
+  useEffect(() => {
+    const fetchPendingOverpayments = async () => {
+      if (!shop?.id) {
+        setPendingOverpayments(0);
+        return;
+      }
+
+      const { count, error } = await supabase
+        .from("overpayments")
+        .select("id", { count: "exact", head: true })
+        .eq("shop_id", shop.id)
+        .eq("status", "pending");
+
+      if (!error) {
+        setPendingOverpayments(count || 0);
+      }
+    };
+
+    fetchPendingOverpayments();
+
+    if (!shop?.id) return;
+
+    const channel = supabase
+      .channel(`overpayments-sidebar-${shop.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "overpayments", filter: `shop_id=eq.${shop.id}` },
+        () => fetchPendingOverpayments()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shop?.id]);
+
+  const navItems = useMemo(
+    () => mainNavItems.map((item) => ({
+      ...item,
+      badge: item.url === "/dashboard/overpayments" && pendingOverpayments > 0 ? pendingOverpayments : null,
+    })),
+    [pendingOverpayments]
+  );
 
   const handleEmailSupport = () => {
     window.location.href = "mailto:support@abafshop.com?subject=ABAF-SHOP Support Request";
@@ -46,12 +94,12 @@ export function DashboardSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary">
             <Store className="h-5 w-5 text-primary-foreground" />
           </div>
           {!collapsed && (
             <div className="flex flex-col overflow-hidden">
-              <span className="font-bold text-sidebar-foreground truncate">{shop?.name || "ABAF-SHOP"}</span>
+              <span className="truncate font-bold text-sidebar-foreground">{shop?.name || "ABAF-SHOP"}</span>
               <span className="text-xs text-sidebar-foreground/60">{isOwner ? "Owner" : "Staff"}</span>
             </div>
           )}
@@ -63,12 +111,22 @@ export function DashboardSidebar() {
           <SidebarGroupLabel>Main</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink to={item.url} end={item.url === "/dashboard"} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium">
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/dashboard"}
+                      className="hover:bg-sidebar-accent"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span className="flex-1">{item.title}</span>
+                      {!collapsed && item.badge ? (
+                        <Badge variant="secondary" className="ml-auto min-w-5 justify-center px-1.5 text-xs">
+                          {item.badge}
+                        </Badge>
+                      ) : null}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -105,7 +163,7 @@ export function DashboardSidebar() {
               <SidebarMenuButton asChild tooltip="Super Admin Panel">
                 <NavLink to="/superadmin" className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent font-medium">
                   <ShieldCheck className="h-4 w-4 text-primary" />
-                  {!collapsed && <span className="text-primary font-medium">Admin Panel</span>}
+                  {!collapsed && <span className="font-medium text-primary">Admin Panel</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -597,9 +597,9 @@ export default function POS() {
                       </div>
 
                       {paymentType === "credit" && (
-                        <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
-                          <p className="font-medium text-amber-800 dark:text-amber-200">Loan Sale</p>
-                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <div className="space-y-1 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
+                          <p className="font-medium text-warning">Loan Sale</p>
+                          <p className="text-xs text-muted-foreground">
                             Add the amount collected now, or leave empty for a full loan. The remaining balance will be saved automatically.
                           </p>
                         </div>
@@ -687,11 +687,11 @@ export default function POS() {
                       )}
 
                       {paymentType === "credit" && (
-                        <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
-                          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        <div className="space-y-1 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                          <p className="text-sm font-medium text-warning">
                             Loan Balance: {shop?.currency} {balanceDue.toLocaleString()}
                           </p>
-                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                          <p className="text-xs text-muted-foreground">
                             This balance will be added to the customer record and the Loans page.
                           </p>
                         </div>

@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useShop } from "@/hooks/useShop";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DollarSign,
@@ -14,6 +13,7 @@ import {
   FileText,
   Download,
   Clock,
+  ArrowDownUp,
 } from "lucide-react";
 import { generateDailyReportPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";
@@ -26,6 +26,9 @@ interface DashboardStats {
   lowStockCount: number;
   cashSales: number;
   creditSales: number;
+  transferSales: number;
+  pendingOverpaymentsCount: number;
+  pendingOverpaymentsAmount: number;
 }
 
 interface LowStockProduct {
@@ -34,6 +37,7 @@ interface LowStockProduct {
   quantity_on_hand: number;
   low_stock_level: number;
 }
+
 interface RecentSale {
   id: string;
   receipt_id: string | null;
@@ -41,7 +45,18 @@ interface RecentSale {
   payment_type: string;
   created_at: string | null;
   staff_id: string;
-  staff_name?: string;
+  staff_name: string;
+}
+
+interface StaffDailySummary {
+  staff_id: string;
+  staff_name: string;
+  transaction_count: number;
+  total_sales: number;
+  cash_sales: number;
+  credit_sales: number;
+  transfer_sales: number;
+  last_sale_at: string | null;
 }
 
 export default function DashboardHome() {
@@ -53,82 +68,158 @@ export default function DashboardHome() {
     lowStockCount: 0,
     cashSales: 0,
     creditSales: 0,
+    transferSales: 0,
+    pendingOverpaymentsCount: 0,
+    pendingOverpaymentsAmount: 0,
   });
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
+  const [staffPerformance, setStaffPerformance] = useState<StaffDailySummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (shop) {
       fetchDashboardData();
     }
-  }, [shop]);
+  }, [shop, isOwner]);
 
   const fetchDashboardData = async () => {
     if (!shop) return;
 
     try {
-      const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+      setLoading(true);
 
-      // Fetch today's sales
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("total_amount, payment_type")
-        .eq("shop_id", shop.id)
-        .gte("created_at", startOfDay)
-        .lte("created_at", endOfDay);
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-      const todaySales = salesData?.reduce((sum, s) => sum + Number(s.total_amount), 0) || 0;
-      const cashSales = salesData?.filter(s => s.payment_type === "cash").reduce((sum, s) => sum + Number(s.total_amount), 0) || 0;
-      const creditSales = salesData?.filter(s => s.payment_type === "credit").reduce((sum, s) => sum + Number(s.total_amount), 0) || 0;
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
 
-      // Fetch customers count
-      const { count: customersCount } = await supabase
-        .from("customers")
-        .select("*", { count: "exact", head: true })
-        .eq("shop_id", shop.id);
+      const staffCredentialsPromise = isOwner
+        ? supabase.from("staff_credentials").select("user_id, username").eq("shop_id", shop.id)
+        : Promise.resolve({ data: [], error: null });
 
-      // Fetch low stock products
-      const { data: lowStock } = await supabase
-        .from("products")
-        .select("id, name, quantity_on_hand, low_stock_level")
-        .eq("shop_id", shop.id)
-        .filter("quantity_on_hand", "lte", "low_stock_level");
-
-      setStats({
-        todaySales,
-        todayTransactions: salesData?.length || 0,
-        totalCustomers: customersCount || 0,
-        lowStockCount: lowStock?.length || 0,
-        cashSales,
-        creditSales,
-      });
-
-      setLowStockProducts(lowStock || []);
-
-      // Fetch recent sales (last 10)
-      if (isOwner) {
-        const { data: recentData } = await supabase
+      const [
+        todaySalesResult,
+        recentSalesResult,
+        customersResult,
+        productsResult,
+        overpaymentsResult,
+        staffCredentialsResult,
+      ] = await Promise.all([
+        supabase
           .from("sales")
           .select("id, receipt_id, total_amount, payment_type, created_at, staff_id")
           .eq("shop_id", shop.id)
-          .order("created_at", { ascending: false })
-          .limit(10);
+          .gte("created_at", startOfDay.toISOString())
+          .lte("created_at", endOfDay.toISOString()),
+        isOwner
+          ? supabase
+              .from("sales")
+              .select("id, receipt_id, total_amount, payment_type, created_at, staff_id")
+              .eq("shop_id", shop.id)
+              .order("created_at", { ascending: false })
+              .limit(10)
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("shop_id", shop.id),
+        supabase.from("products").select("id, name, quantity_on_hand, low_stock_level").eq("shop_id", shop.id),
+        supabase.from("overpayments").select("amount").eq("shop_id", shop.id).eq("status", "pending"),
+        staffCredentialsPromise,
+      ]);
 
-        if (recentData && recentData.length > 0) {
-          const staffIds = [...new Set(recentData.map(s => s.staff_id))];
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("user_id, display_name")
-            .in("user_id", staffIds);
+      if (todaySalesResult.error) throw todaySalesResult.error;
+      if (recentSalesResult.error) throw recentSalesResult.error;
+      if (customersResult.error) throw customersResult.error;
+      if (productsResult.error) throw productsResult.error;
+      if (overpaymentsResult.error) throw overpaymentsResult.error;
+      if (staffCredentialsResult.error) throw staffCredentialsResult.error;
 
-          const nameMap: Record<string, string> = {};
-          profiles?.forEach(p => { nameMap[p.user_id] = p.display_name || "Unknown"; });
+      const salesData = todaySalesResult.data || [];
+      const recentData = recentSalesResult.data || [];
+      const productsData = productsResult.data || [];
+      const pendingOverpayments = overpaymentsResult.data || [];
+      const staffCredentials = staffCredentialsResult.data || [];
 
-          setRecentSales(recentData.map(s => ({ ...s, staff_name: nameMap[s.staff_id] || "Unknown" })));
-        }
+      const staffNameMap = Object.fromEntries(
+        staffCredentials.map((credential) => [credential.user_id, credential.username])
+      ) as Record<string, string>;
+
+      const todaySales = salesData.reduce((sum, sale) => sum + Number(sale.total_amount), 0);
+      const cashSales = salesData
+        .filter((sale) => sale.payment_type === "cash")
+        .reduce((sum, sale) => sum + Number(sale.total_amount), 0);
+      const creditSales = salesData
+        .filter((sale) => sale.payment_type === "credit")
+        .reduce((sum, sale) => sum + Number(sale.total_amount), 0);
+      const transferSales = salesData
+        .filter((sale) => sale.payment_type.startsWith("transfer"))
+        .reduce((sum, sale) => sum + Number(sale.total_amount), 0);
+
+      const filteredLowStock = productsData.filter(
+        (product) => Number(product.quantity_on_hand || 0) <= Number(product.low_stock_level || 0)
+      );
+
+      setStats({
+        todaySales,
+        todayTransactions: salesData.length,
+        totalCustomers: customersResult.count || 0,
+        lowStockCount: filteredLowStock.length,
+        cashSales,
+        creditSales,
+        transferSales,
+        pendingOverpaymentsCount: pendingOverpayments.length,
+        pendingOverpaymentsAmount: pendingOverpayments.reduce((sum, item) => sum + Number(item.amount), 0),
+      });
+
+      setLowStockProducts(filteredLowStock);
+
+      if (isOwner) {
+        const getStaffName = (staffId: string) => {
+          if (staffId === shop.owner_id) return "Owner";
+          return staffNameMap[staffId] || "Staff";
+        };
+
+        setRecentSales(
+          recentData.map((sale) => ({
+            ...sale,
+            total_amount: Number(sale.total_amount),
+            staff_name: getStaffName(sale.staff_id),
+          }))
+        );
+
+        const staffSummaryMap = new Map<string, StaffDailySummary>();
+
+        salesData.forEach((sale) => {
+          const existing = staffSummaryMap.get(sale.staff_id) || {
+            staff_id: sale.staff_id,
+            staff_name: getStaffName(sale.staff_id),
+            transaction_count: 0,
+            total_sales: 0,
+            cash_sales: 0,
+            credit_sales: 0,
+            transfer_sales: 0,
+            last_sale_at: null,
+          };
+
+          const saleAmount = Number(sale.total_amount);
+          existing.transaction_count += 1;
+          existing.total_sales += saleAmount;
+          if (sale.payment_type === "cash") existing.cash_sales += saleAmount;
+          if (sale.payment_type === "credit") existing.credit_sales += saleAmount;
+          if (sale.payment_type.startsWith("transfer")) existing.transfer_sales += saleAmount;
+          if (!existing.last_sale_at || (sale.created_at && sale.created_at > existing.last_sale_at)) {
+            existing.last_sale_at = sale.created_at;
+          }
+
+          staffSummaryMap.set(sale.staff_id, existing);
+        });
+
+        setStaffPerformance(
+          Array.from(staffSummaryMap.values()).sort((a, b) => b.total_sales - a.total_sales)
+        );
+      } else {
+        setRecentSales([]);
+        setStaffPerformance([]);
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -196,11 +287,10 @@ export default function DashboardHome() {
         )}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Today&apos;s Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -208,7 +298,7 @@ export default function DashboardHome() {
               {shop.currency} {stats.todaySales.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              Cash: {shop.currency} {stats.cashSales.toLocaleString()} | Credit: {shop.currency} {stats.creditSales.toLocaleString()}
+              Cash {shop.currency} {stats.cashSales.toLocaleString()} • Loan {shop.currency} {stats.creditSales.toLocaleString()} • Transfer {shop.currency} {stats.transferSales.toLocaleString()}
             </p>
           </CardContent>
         </Card>
@@ -220,7 +310,7 @@ export default function DashboardHome() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.todayTransactions}</div>
-            <p className="text-xs text-muted-foreground">Sales today</p>
+            <p className="text-xs text-muted-foreground">Completed sales today</p>
           </CardContent>
         </Card>
 
@@ -237,19 +327,33 @@ export default function DashboardHome() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-sm font-medium">Change Owed</CardTitle>
+            <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{stats.lowStockCount}</div>
+            <div className="text-2xl font-bold">{stats.pendingOverpaymentsCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Pending {shop.currency} {stats.pendingOverpaymentsAmount.toLocaleString()}
+            </p>
+            <Link to="/dashboard/overpayments" className="mt-2 inline-block text-xs font-medium text-primary">
+              Open Change Owed
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.lowStockCount}</div>
             <p className="text-xs text-muted-foreground">Items need restocking</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions & Alerts */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Quick Actions */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -280,11 +384,10 @@ export default function DashboardHome() {
           </CardContent>
         </Card>
 
-        {/* Low Stock Alert */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+              <AlertTriangle className="h-5 w-5" />
               Low Stock Alerts
             </CardTitle>
             <CardDescription>Products that need restocking</CardDescription>
@@ -295,9 +398,9 @@ export default function DashboardHome() {
             ) : (
               <div className="space-y-2">
                 {lowStockProducts.slice(0, 5).map((product) => (
-                  <div key={product.id} className="flex items-center justify-between p-2 bg-destructive/10 rounded-lg">
+                  <div key={product.id} className="flex items-center justify-between rounded-lg border bg-muted/40 p-2">
                     <span className="text-sm font-medium">{product.name}</span>
-                    <span className="text-sm text-destructive font-bold">
+                    <span className="text-sm font-bold text-foreground">
                       {product.quantity_on_hand} left
                     </span>
                   </div>
@@ -313,44 +416,90 @@ export default function DashboardHome() {
         </Card>
       </div>
 
-      {/* Recent Activity - Owner only */}
-      {isOwner && recentSales.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Recent Staff Activity
-            </CardTitle>
-            <CardDescription>Latest sales across all staff</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentSales.map((sale) => (
-                <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <ShoppingCart className="h-4 w-4 text-primary" />
+      {isOwner && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Daily Staff Sales Summary
+              </CardTitle>
+              <CardDescription>Combined shop sales for today by owner and staff</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {staffPerformance.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sales recorded yet today.</p>
+              ) : (
+                <div className="space-y-3">
+                  {staffPerformance.map((staff) => (
+                    <div key={staff.staff_id} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">{staff.staff_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {staff.transaction_count} sale{staff.transaction_count === 1 ? "" : "s"}
+                            {staff.last_sale_at ? ` • Last sale ${format(new Date(staff.last_sale_at), "HH:mm")}` : ""}
+                          </p>
+                        </div>
+                        <p className="text-sm font-bold">
+                          {shop.currency} {staff.total_sales.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge variant="outline">Cash {shop.currency} {staff.cash_sales.toLocaleString()}</Badge>
+                        <Badge variant="outline">Loan {shop.currency} {staff.credit_sales.toLocaleString()}</Badge>
+                        <Badge variant="outline">Transfer {shop.currency} {staff.transfer_sales.toLocaleString()}</Badge>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{sale.staff_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {sale.created_at ? format(new Date(sale.created_at), "MMM dd, HH:mm") : "N/A"}
-                        {" • "}
-                        <span className="font-mono">{sale.receipt_id || sale.id.slice(0, 8)}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">{shop.currency} {sale.total_amount.toLocaleString()}</p>
-                    <Badge variant={sale.payment_type === "cash" ? "default" : "secondary"} className="text-xs">
-                      {sale.payment_type}
-                    </Badge>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Recent Staff Activity
+              </CardTitle>
+              <CardDescription>Latest sales across the shop</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {recentSales.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sales activity yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentSales.map((sale) => (
+                    <div key={sale.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                          <ShoppingCart className="h-4 w-4 text-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{sale.staff_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {sale.created_at ? format(new Date(sale.created_at), "MMM dd, HH:mm") : "N/A"}
+                            {" • "}
+                            <span className="font-mono">{sale.receipt_id || sale.id.slice(0, 8)}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold">
+                          {shop.currency} {sale.total_amount.toLocaleString()}
+                        </p>
+                        <Badge variant={sale.payment_type === "cash" ? "default" : "secondary"} className="text-xs">
+                          {sale.payment_type}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

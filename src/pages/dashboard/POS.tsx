@@ -70,6 +70,35 @@ interface PendingCheckoutPayload {
   changeAmount: number;
 }
 
+interface ReceiptPayload {
+  shopName: string;
+  shopAddress?: string;
+  shopPhone?: string;
+  shopLogoUrl?: string;
+  receiptId: string;
+  date: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
+  totalAmount: number;
+  amountPaid: number;
+  paymentType: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  currency: string;
+  footer?: string;
+  transferDetails?: TransferDetails;
+}
+
+interface ProcessSaleResponse {
+  receiptId: string;
+  receipt: ReceiptPayload;
+}
+
 const emptyTransferDetails: TransferDetails = {
   transferType: "mobile",
   providerName: "",
@@ -80,7 +109,7 @@ const emptyTransferDetails: TransferDetails = {
 
 export default function POS() {
   const { shop } = useShop();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -197,13 +226,6 @@ export default function POS() {
     setCart(cart.filter((item) => item.product.id !== productId));
   };
 
-  const generateReceiptId = () => {
-    const prefix = (shop?.name || "ABAF").substring(0, 4).toUpperCase();
-    const date = format(new Date(), "yyyyMMdd");
-    const random = Math.floor(10000 + Math.random() * 90000);
-    return `${prefix}-${date}-${random}`;
-  };
-
   const resetSaleState = async () => {
     setCart([]);
     setAmountPaid("");
@@ -217,141 +239,51 @@ export default function POS() {
   };
 
   const finalizeCheckout = async (paid: number) => {
-    if (!shop || !user || cart.length === 0) return;
+    if (!shop || !user || !session || cart.length === 0) return;
 
     setIsProcessing(true);
 
     try {
-      const newReceiptId = generateReceiptId();
-      const customerId = selectedCustomer && selectedCustomer !== "walkin" ? selectedCustomer : null;
-      const paymentLabel = paymentType === "transfer"
-        ? `transfer-${transferDetails.transferType}`
-        : paymentType;
-      const saleStatus = paymentType === "credit"
-        ? (paid <= 0 ? "unpaid" : paid < cartTotal ? "partial" : "completed")
-        : "completed";
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-sale`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          shopId: shop.id,
+          customerId: selectedCustomer && selectedCustomer !== "walkin" ? selectedCustomer : null,
+          paymentType,
+          amountPaid: paid,
+          cartItems: cart.map((item) => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+          })),
+          transferDetails: paymentType === "transfer" ? transferDetails : null,
+        }),
+      });
 
-      const { data: sale, error: saleError } = await supabase
-        .from("sales")
-        .insert({
-          shop_id: shop.id,
-          staff_id: user.id,
-          customer_id: customerId,
-          total_amount: cartTotal,
-          amount_paid: paid,
-          payment_type: paymentLabel,
-          receipt_id: newReceiptId,
-          status: saleStatus,
-        })
-        .select()
-        .single();
+      const result = (await response.json()) as ProcessSaleResponse & { error?: string };
 
-      if (saleError) throw saleError;
-
-      const saleItems = cart.map((item) => ({
-        sale_id: sale.id,
-        product_id: item.product.id,
-        quantity: item.quantity,
-        unit_price: item.product.selling_price,
-        total: item.product.selling_price * item.quantity,
-      }));
-
-      const { error: itemsError } = await supabase.from("sale_items").insert(saleItems);
-      if (itemsError) throw itemsError;
-
-      const stockUpdates = await Promise.all(
-        cart.map(async (item) => {
-          const newQty = (item.product.quantity_on_hand || 0) - item.quantity;
-
-          const [productRes, movementRes] = await Promise.all([
-            supabase.from("products").update({ quantity_on_hand: newQty }).eq("id", item.product.id),
-            supabase.from("stock_movements").insert({
-              product_id: item.product.id,
-              shop_id: shop.id,
-              movement_type: "sale",
-              quantity: -item.quantity,
-              recorded_by: user.id,
-              reference_id: sale.id,
-              reference_type: "sale",
-              notes: `Sale ${newReceiptId}`,
-            }),
-          ]);
-
-          if (productRes.error) throw productRes.error;
-          if (movementRes.error) throw movementRes.error;
-        })
-      );
-
-      await Promise.all(stockUpdates);
-
-      if (paymentType === "credit" && customerId) {
-        const loanAmountPaid = Math.min(paid, cartTotal);
-        const loanStatus = loanAmountPaid <= 0 ? "unpaid" : loanAmountPaid < cartTotal ? "part-paid" : "paid";
-
-        const { error: loanError } = await supabase.from("loans").insert({
-          shop_id: shop.id,
-          customer_id: customerId,
-          sale_id: sale.id,
-          total_amount: cartTotal,
-          amount_paid: loanAmountPaid,
-          status: loanStatus,
-        });
-
-        if (loanError) throw loanError;
-
-        const currentBalance = Number(selectedCustomerRecord?.outstanding_balance || 0);
-        const { error: customerBalanceError } = await supabase
-          .from("customers")
-          .update({ outstanding_balance: currentBalance + Math.max(cartTotal - loanAmountPaid, 0) })
-          .eq("id", customerId);
-
-        if (customerBalanceError) throw customerBalanceError;
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to complete sale.");
       }
 
-      if (paid > cartTotal) {
-        const { error: overpaymentError } = await supabase.from("overpayments").insert({
-          shop_id: shop.id,
-          customer_id: customerId,
-          customer_name: selectedCustomerRecord?.name || "Walk-in Customer",
-          sale_id: sale.id,
-          receipt_id: newReceiptId,
-          amount: paid - cartTotal,
-          status: "pending",
-          notes: `Change of ${shop.currency || "Le"} ${(paid - cartTotal).toLocaleString()} from ${paymentLabel} payment`,
-        });
-
-        if (overpaymentError) throw overpaymentError;
+      if (!result.receipt) {
+        throw new Error("Receipt data was not returned.");
       }
 
       const doc = generateReceiptPDF({
-        shopName: shop.name,
-        shopAddress: shop.address || undefined,
-        shopPhone: shop.phone || undefined,
-        shopLogoUrl: shop.logo_url || undefined,
-        receiptId: newReceiptId,
-        date: format(new Date(), "PPpp"),
-        items: cart.map((item) => ({
-          name: item.product.name,
-          quantity: item.quantity,
-          unitPrice: item.product.selling_price,
-          total: item.product.selling_price * item.quantity,
-        })),
-        totalAmount: cartTotal,
-        amountPaid: paid,
-        paymentType: paymentLabel,
-        customerName: selectedCustomerRecord?.name,
-        customerPhone: selectedCustomerRecord?.phone || undefined,
-        customerAddress: selectedCustomerRecord?.address || undefined,
-        currency: shop.currency || "Le",
-        footer: shop.receipt_footer || undefined,
-        transferDetails: paymentType === "transfer" ? transferDetails : undefined,
+        ...result.receipt,
+        date: format(new Date(result.receipt.date), "PPpp"),
       });
 
       setReceiptDoc(doc);
-      setReceiptIdState(newReceiptId);
+      setReceiptIdState(result.receiptId || result.receipt.receiptId);
       setReceiptModalOpen(true);
 
-      toast({ title: "Sale Completed!", description: `Receipt: ${newReceiptId}` });
+      toast({ title: "Sale Completed!", description: `Receipt: ${result.receiptId}` });
       await resetSaleState();
     } catch (error) {
       console.error("Checkout error:", error);
@@ -366,13 +298,11 @@ export default function POS() {
   };
 
   const handleCheckout = async () => {
-    if (!shop || !user || cart.length === 0) return;
+    if (!shop || !user || !session || cart.length === 0) return;
 
-    if (paymentType === "cash") {
-      if (paidAmount < cartTotal) {
-        toast({ variant: "destructive", title: "Insufficient Payment", description: `Amount paid (${paidAmount}) is less than total (${cartTotal})` });
-        return;
-      }
+    if (paymentType === "cash" && paidAmount < cartTotal) {
+      toast({ variant: "destructive", title: "Insufficient Payment", description: `Amount paid (${paidAmount}) is less than total (${cartTotal})` });
+      return;
     }
 
     if (requiresRegisteredCustomer && !canUseCredit) {

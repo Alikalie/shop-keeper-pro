@@ -29,6 +29,7 @@ import { format } from "date-fns";
 
 interface LoanWithCustomer {
   id: string;
+  customer_id: string;
   total_amount: number;
   amount_paid: number | null;
   status: string | null;
@@ -36,6 +37,7 @@ interface LoanWithCustomer {
   customer: {
     name: string;
     phone: string | null;
+    outstanding_balance: number | null;
   };
 }
 
@@ -60,11 +62,12 @@ export default function Loans() {
     if (!shop) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from("loans")
         .select(`
-          id, total_amount, amount_paid, status, created_at,
-          customers:customer_id (name, phone)
+          id, customer_id, total_amount, amount_paid, status, created_at,
+          customers:customer_id (name, phone, outstanding_balance)
         `)
         .eq("shop_id", shop.id)
         .order("created_at", { ascending: false });
@@ -72,10 +75,17 @@ export default function Loans() {
       if (error) throw error;
 
       const transformedLoans: LoanWithCustomer[] = (data || []).map((loan) => ({
-        ...loan,
+        id: loan.id,
+        customer_id: loan.customer_id,
+        total_amount: Number(loan.total_amount),
+        amount_paid: loan.amount_paid ? Number(loan.amount_paid) : 0,
+        status: loan.status,
+        created_at: loan.created_at,
         customer: {
-          name: (loan.customers as unknown as { name: string })?.name || "Unknown",
-          phone: (loan.customers as unknown as { phone: string | null })?.phone || null,
+          name: (loan.customers as unknown as { name?: string })?.name || "Unknown",
+          phone: (loan.customers as unknown as { phone?: string | null })?.phone || null,
+          outstanding_balance:
+            (loan.customers as unknown as { outstanding_balance?: number | null })?.outstanding_balance || 0,
         },
       }));
 
@@ -88,19 +98,19 @@ export default function Loans() {
   };
 
   const handlePayment = async () => {
-    if (!selectedLoan || !paymentAmount || !user) {
+    if (!selectedLoan || !user) {
       toast({
         variant: "destructive",
         title: "Missing Information",
-        description: "Please enter a payment amount.",
+        description: "Please select a loan to repay.",
       });
       return;
     }
 
-    const amount = parseFloat(paymentAmount);
-    const remaining = selectedLoan.total_amount - (selectedLoan.amount_paid || 0);
+    const amount = Number.parseFloat(paymentAmount);
+    const remaining = Math.max(selectedLoan.total_amount - (selectedLoan.amount_paid || 0), 0);
 
-    if (amount <= 0 || amount > remaining) {
+    if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
       toast({
         variant: "destructive",
         title: "Invalid Amount",
@@ -112,32 +122,36 @@ export default function Loans() {
     setIsSubmitting(true);
 
     try {
-      // Record payment
-      const { error: paymentError } = await supabase.from("loan_payments").insert({
-        loan_id: selectedLoan.id,
-        amount,
-        received_by: user.id,
-      });
-
-      if (paymentError) throw paymentError;
-
-      // Update loan
       const newPaidAmount = (selectedLoan.amount_paid || 0) + amount;
       const newStatus = newPaidAmount >= selectedLoan.total_amount ? "paid" : "partial";
+      const newOutstandingBalance = Math.max(Number(selectedLoan.customer.outstanding_balance || 0) - amount, 0);
 
-      const { error: loanError } = await supabase
-        .from("loans")
-        .update({
-          amount_paid: newPaidAmount,
-          status: newStatus,
-        })
-        .eq("id", selectedLoan.id);
+      const [paymentResult, loanResult, customerResult] = await Promise.all([
+        supabase.from("loan_payments").insert({
+          loan_id: selectedLoan.id,
+          amount,
+          received_by: user.id,
+        }),
+        supabase
+          .from("loans")
+          .update({
+            amount_paid: newPaidAmount,
+            status: newStatus,
+          })
+          .eq("id", selectedLoan.id),
+        supabase
+          .from("customers")
+          .update({ outstanding_balance: newOutstandingBalance })
+          .eq("id", selectedLoan.customer_id),
+      ]);
 
-      if (loanError) throw loanError;
+      if (paymentResult.error) throw paymentResult.error;
+      if (loanResult.error) throw loanResult.error;
+      if (customerResult.error) throw customerResult.error;
 
       toast({
-        title: "Payment Recorded",
-        description: `${shop?.currency} ${amount.toLocaleString()} payment recorded successfully.`,
+        title: "Repayment Recorded",
+        description: `${shop?.currency} ${amount.toLocaleString()} applied successfully.`,
       });
 
       setSelectedLoan(null);
@@ -148,7 +162,7 @@ export default function Loans() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to record payment",
+        description: "Failed to record loan repayment",
       });
     } finally {
       setIsSubmitting(false);
@@ -160,14 +174,14 @@ export default function Loans() {
     if (paid >= totalAmount || status === "paid") {
       return <Badge variant="default">Paid</Badge>;
     }
-    if (paid > 0 || status === "partial") {
+    if (paid > 0 || status === "partial" || status === "part-paid") {
       return <Badge variant="secondary">Partial</Badge>;
     }
     return <Badge variant="destructive">Unpaid</Badge>;
   };
 
-  const filteredLoans = loans.filter((l) =>
-    l.customer.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredLoans = loans.filter((loan) =>
+    loan.customer.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -183,23 +197,23 @@ export default function Loans() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Loans</h1>
-          <p className="text-muted-foreground">Track customer credit and payments</p>
+          <p className="text-muted-foreground">Track customer credit and repayments</p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
                 Outstanding Loans
               </CardTitle>
               <CardDescription>
-                {loans.filter((l) => (l.amount_paid || 0) < l.total_amount).length} unpaid loans
+                {loans.filter((loan) => (loan.amount_paid || 0) < loan.total_amount).length} active loans
               </CardDescription>
             </div>
-            <div className="relative w-64">
+            <div className="relative w-full max-w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by customer..."
@@ -219,6 +233,7 @@ export default function Loans() {
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Paid</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
+                <TableHead className="text-right">Customer Balance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -250,6 +265,9 @@ export default function Loans() {
                     <TableCell className="text-right font-medium text-destructive">
                       {shop?.currency} {balance.toLocaleString()}
                     </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {shop?.currency} {Number(loan.customer.outstanding_balance || 0).toLocaleString()}
+                    </TableCell>
                     <TableCell>
                       {getStatusBadge(loan.status, loan.total_amount, loan.amount_paid)}
                     </TableCell>
@@ -258,10 +276,13 @@ export default function Loans() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedLoan(loan)}
+                          onClick={() => {
+                            setSelectedLoan(loan);
+                            setPaymentAmount("");
+                          }}
                         >
                           <Plus className="mr-1 h-3 w-3" />
-                          Payment
+                          Repay
                         </Button>
                       )}
                     </TableCell>
@@ -270,7 +291,7 @@ export default function Loans() {
               })}
               {filteredLoans.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     {searchQuery ? "No loans match your search" : "No loans recorded"}
                   </TableCell>
                 </TableRow>
@@ -280,19 +301,18 @@ export default function Loans() {
         </CardContent>
       </Card>
 
-      {/* Payment Dialog */}
       <Dialog open={!!selectedLoan} onOpenChange={() => setSelectedLoan(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <DialogTitle>Record Repayment</DialogTitle>
             <DialogDescription>
-              Recording payment for {selectedLoan?.customer.name}
+              Apply a partial or full repayment for {selectedLoan?.customer.name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            <div className="space-y-2 rounded-lg bg-muted/50 p-4">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total Amount:</span>
+                <span className="text-muted-foreground">Total Loan:</span>
                 <span className="font-medium">
                   {shop?.currency} {selectedLoan?.total_amount.toLocaleString()}
                 </span>
@@ -303,8 +323,14 @@ export default function Loans() {
                   {shop?.currency} {(selectedLoan?.amount_paid || 0).toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between text-sm font-bold border-t pt-2">
-                <span>Remaining:</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Customer Balance:</span>
+                <span className="font-medium">
+                  {shop?.currency} {Number(selectedLoan?.customer.outstanding_balance || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between border-t pt-2 text-sm font-bold">
+                <span>Remaining on This Loan:</span>
                 <span className="text-destructive">
                   {shop?.currency}{" "}
                   {(
@@ -314,10 +340,26 @@ export default function Loans() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="amount">Payment Amount</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="amount">Repayment Amount</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPaymentAmount(
+                      String((selectedLoan?.total_amount || 0) - (selectedLoan?.amount_paid || 0))
+                    )
+                  }
+                >
+                  Use Full Remaining
+                </Button>
+              </div>
               <Input
                 id="amount"
                 type="number"
+                min="0.01"
+                step="0.01"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
                 placeholder="Enter amount"
@@ -329,7 +371,7 @@ export default function Loans() {
               Cancel
             </Button>
             <Button onClick={handlePayment} disabled={isSubmitting}>
-              {isSubmitting ? "Recording..." : "Record Payment"}
+              {isSubmitting ? "Recording..." : "Record Repayment"}
             </Button>
           </DialogFooter>
         </DialogContent>

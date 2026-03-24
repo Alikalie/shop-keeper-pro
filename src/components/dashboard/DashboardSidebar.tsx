@@ -27,6 +27,7 @@ const mainNavItems = [
 
 const adminNavItems = [
   { title: "Reports", url: "/dashboard/reports", icon: TrendingUp },
+  { title: "Staff Performance", url: "/dashboard/staff-performance", icon: Users },
   { title: "User Management", url: "/dashboard/users", icon: UserCog },
   { title: "Shop Settings", url: "/dashboard/settings", icon: Settings },
 ];

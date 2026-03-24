@@ -32,6 +32,8 @@ import AdminLoans from "./pages/superadmin/AdminLoans";
 import AdminAnalytics from "./pages/superadmin/AdminAnalytics";
 import AdminSales from "./pages/superadmin/AdminSales";
 import AdminSiteSettings from "./pages/superadmin/AdminSiteSettings";
+import AdminPlatformSettings from "./pages/superadmin/AdminPlatformSettings";
+import StaffPerformance from "./pages/dashboard/StaffPerformance";
 
 const queryClient = new QueryClient();
 

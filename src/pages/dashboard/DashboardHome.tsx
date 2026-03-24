@@ -357,6 +357,21 @@ export default function DashboardHome() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Loans</CardTitle>
+            <CreditCard className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{stats.pendingLoansCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Balance {shop.currency} {stats.pendingLoansTotal.toLocaleString()}
+            </p>
+            <Link to="/dashboard/loans" className="mt-2 inline-block text-xs font-medium text-primary">
+              View Loans
+            </Link>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>

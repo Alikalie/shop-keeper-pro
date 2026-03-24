@@ -129,6 +129,8 @@ export default function DashboardHome() {
         supabase.from("products").select("id, name, quantity_on_hand, low_stock_level").eq("shop_id", shop.id),
         supabase.from("overpayments").select("amount").eq("shop_id", shop.id).eq("status", "pending"),
         staffCredentialsPromise,
+        supabase.from("loans").select("total_amount, amount_paid, status, customer_id, customers:customer_id(name)")
+          .eq("shop_id", shop.id).neq("status", "paid"),
       ]);
 
       if (todaySalesResult.error) throw todaySalesResult.error;

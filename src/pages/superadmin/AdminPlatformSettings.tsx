@@ -12,12 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Plus, Edit, Trash2, Sparkles, DollarSign, Zap } from "lucide-react";
 
-// We'll store platform-level settings using a special "platform" shop_id convention
-// Since site_settings requires shop_id, we'll use a dedicated platform config approach
-// Store as JSON in site_settings with a special shop_id
-
-const PLATFORM_SHOP_ID = "00000000-0000-0000-0000-000000000000";
-
 interface PlanTier {
   id: string;
   name: string;

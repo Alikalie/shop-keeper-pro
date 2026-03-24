@@ -63,9 +63,8 @@ export default function AdminPlatformSettings() {
   const loadSettings = async () => {
     try {
       const { data } = await supabase
-        .from("site_settings")
-        .select("key, value")
-        .eq("shop_id", PLATFORM_SHOP_ID);
+        .from("platform_settings")
+        .select("key, value");
 
       if (data) {
         const map: Record<string, string> = {};

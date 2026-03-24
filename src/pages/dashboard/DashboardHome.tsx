@@ -73,6 +73,8 @@ export default function DashboardHome() {
     transferSales: 0,
     pendingOverpaymentsCount: 0,
     pendingOverpaymentsAmount: 0,
+    pendingLoansCount: 0,
+    pendingLoansTotal: 0,
   });
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);

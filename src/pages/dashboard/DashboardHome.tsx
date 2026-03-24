@@ -110,6 +110,7 @@ export default function DashboardHome() {
         productsResult,
         overpaymentsResult,
         staffCredentialsResult,
+        loansResult,
       ] = await Promise.all([
         supabase
           .from("sales")

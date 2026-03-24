@@ -14,6 +14,7 @@ import {
   Download,
   Clock,
   ArrowDownUp,
+  CreditCard,
 } from "lucide-react";
 import { generateDailyReportPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";

@@ -17,6 +17,7 @@ const navItems = [
   { title: "Loans & Credits", url: "/superadmin/loans", icon: CreditCard },
   { title: "Analytics", url: "/superadmin/analytics", icon: TrendingUp },
   { title: "Site Management", url: "/superadmin/site-settings", icon: Globe },
+  { title: "Platform Config", url: "/superadmin/platform-settings", icon: Sparkles },
 ];
 
 export function SuperAdminSidebar() {

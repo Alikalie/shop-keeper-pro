@@ -92,6 +92,7 @@ const App = () => (
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="sales" element={<AdminSales />} />
               <Route path="site-settings" element={<AdminSiteSettings />} />
+              <Route path="platform-settings" element={<AdminPlatformSettings />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

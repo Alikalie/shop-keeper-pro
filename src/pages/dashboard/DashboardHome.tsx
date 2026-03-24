@@ -29,6 +29,8 @@ interface DashboardStats {
   transferSales: number;
   pendingOverpaymentsCount: number;
   pendingOverpaymentsAmount: number;
+  pendingLoansCount: number;
+  pendingLoansTotal: number;
 }
 
 interface LowStockProduct {

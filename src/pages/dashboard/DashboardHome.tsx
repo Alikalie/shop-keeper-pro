@@ -146,6 +146,7 @@ export default function DashboardHome() {
       const productsData = productsResult.data || [];
       const pendingOverpayments = overpaymentsResult.data || [];
       const staffCredentials = staffCredentialsResult.data || [];
+      const activeLoans = loansResult.data || [];
 
       const staffNameMap = Object.fromEntries(
         staffCredentials.map((credential) => [credential.user_id, credential.username])
@@ -166,6 +167,10 @@ export default function DashboardHome() {
         (product) => Number(product.quantity_on_hand || 0) <= Number(product.low_stock_level || 0)
       );
 
+      const pendingLoansTotal = activeLoans.reduce(
+        (sum, l) => sum + (Number(l.total_amount) - Number(l.amount_paid || 0)), 0
+      );
+
       setStats({
         todaySales,
         todayTransactions: salesData.length,
@@ -176,6 +181,8 @@ export default function DashboardHome() {
         transferSales,
         pendingOverpaymentsCount: pendingOverpayments.length,
         pendingOverpaymentsAmount: pendingOverpayments.reduce((sum, item) => sum + Number(item.amount), 0),
+        pendingLoansCount: activeLoans.length,
+        pendingLoansTotal,
       });
 
       setLowStockProducts(filteredLowStock);

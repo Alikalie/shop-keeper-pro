@@ -14,6 +14,7 @@ import {
   Download,
   Clock,
   ArrowDownUp,
+  CreditCard,
 } from "lucide-react";
 import { generateDailyReportPDF, downloadPDF } from "@/lib/pdf";
 import { format } from "date-fns";
@@ -29,6 +30,8 @@ interface DashboardStats {
   transferSales: number;
   pendingOverpaymentsCount: number;
   pendingOverpaymentsAmount: number;
+  pendingLoansCount: number;
+  pendingLoansTotal: number;
 }
 
 interface LowStockProduct {
@@ -71,6 +74,8 @@ export default function DashboardHome() {
     transferSales: 0,
     pendingOverpaymentsCount: 0,
     pendingOverpaymentsAmount: 0,
+    pendingLoansCount: 0,
+    pendingLoansTotal: 0,
   });
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
@@ -106,6 +111,7 @@ export default function DashboardHome() {
         productsResult,
         overpaymentsResult,
         staffCredentialsResult,
+        loansResult,
       ] = await Promise.all([
         supabase
           .from("sales")
@@ -125,6 +131,8 @@ export default function DashboardHome() {
         supabase.from("products").select("id, name, quantity_on_hand, low_stock_level").eq("shop_id", shop.id),
         supabase.from("overpayments").select("amount").eq("shop_id", shop.id).eq("status", "pending"),
         staffCredentialsPromise,
+        supabase.from("loans").select("total_amount, amount_paid, status, customer_id, customers:customer_id(name)")
+          .eq("shop_id", shop.id).neq("status", "paid"),
       ]);
 
       if (todaySalesResult.error) throw todaySalesResult.error;
@@ -139,6 +147,7 @@ export default function DashboardHome() {
       const productsData = productsResult.data || [];
       const pendingOverpayments = overpaymentsResult.data || [];
       const staffCredentials = staffCredentialsResult.data || [];
+      const activeLoans = loansResult.data || [];
 
       const staffNameMap = Object.fromEntries(
         staffCredentials.map((credential) => [credential.user_id, credential.username])
@@ -159,6 +168,10 @@ export default function DashboardHome() {
         (product) => Number(product.quantity_on_hand || 0) <= Number(product.low_stock_level || 0)
       );
 
+      const pendingLoansTotal = activeLoans.reduce(
+        (sum, l) => sum + (Number(l.total_amount) - Number(l.amount_paid || 0)), 0
+      );
+
       setStats({
         todaySales,
         todayTransactions: salesData.length,
@@ -169,6 +182,8 @@ export default function DashboardHome() {
         transferSales,
         pendingOverpaymentsCount: pendingOverpayments.length,
         pendingOverpaymentsAmount: pendingOverpayments.reduce((sum, item) => sum + Number(item.amount), 0),
+        pendingLoansCount: activeLoans.length,
+        pendingLoansTotal,
       });
 
       setLowStockProducts(filteredLowStock);
@@ -287,7 +302,7 @@ export default function DashboardHome() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today&apos;s Sales</CardTitle>
@@ -341,6 +356,21 @@ export default function DashboardHome() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Loans</CardTitle>
+            <CreditCard className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{stats.pendingLoansCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Balance {shop.currency} {stats.pendingLoansTotal.toLocaleString()}
+            </p>
+            <Link to="/dashboard/loans" className="mt-2 inline-block text-xs font-medium text-primary">
+              View Loans
+            </Link>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock</CardTitle>

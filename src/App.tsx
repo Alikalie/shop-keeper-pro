@@ -32,6 +32,8 @@ import AdminLoans from "./pages/superadmin/AdminLoans";
 import AdminAnalytics from "./pages/superadmin/AdminAnalytics";
 import AdminSales from "./pages/superadmin/AdminSales";
 import AdminSiteSettings from "./pages/superadmin/AdminSiteSettings";
+import AdminPlatformSettings from "./pages/superadmin/AdminPlatformSettings";
+import StaffPerformance from "./pages/dashboard/StaffPerformance";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +69,7 @@ const App = () => (
               <Route path="overpayments" element={<Overpayments />} />
               <Route path="reports" element={<Reports />} />
               <Route path="users" element={<UserManagement />} />
+              <Route path="staff-performance" element={<StaffPerformance />} />
               
               <Route path="settings" element={<ShopSettings />} />
               <Route path="website" element={<WebsiteSettings />} />
@@ -89,6 +92,7 @@ const App = () => (
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="sales" element={<AdminSales />} />
               <Route path="site-settings" element={<AdminSiteSettings />} />
+              <Route path="platform-settings" element={<AdminPlatformSettings />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

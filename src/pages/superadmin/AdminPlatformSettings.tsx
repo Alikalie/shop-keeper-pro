@@ -85,14 +85,14 @@ export default function AdminPlatformSettings() {
     setSaving(true);
     try {
       const entries = [
-        { shop_id: PLATFORM_SHOP_ID, key: "platform_plans", value: JSON.stringify(plans) },
-        { shop_id: PLATFORM_SHOP_ID, key: "platform_features", value: JSON.stringify(features) },
-        { shop_id: PLATFORM_SHOP_ID, key: "demo_title", value: demoTitle },
-        { shop_id: PLATFORM_SHOP_ID, key: "demo_description", value: demoDescription },
+        { key: "platform_plans", value: JSON.stringify(plans) },
+        { key: "platform_features", value: JSON.stringify(features) },
+        { key: "demo_title", value: demoTitle },
+        { key: "demo_description", value: demoDescription },
       ];
 
       for (const entry of entries) {
-        const { error } = await supabase.from("site_settings").upsert(entry, { onConflict: "shop_id,key" });
+        const { error } = await supabase.from("platform_settings").upsert(entry, { onConflict: "key" });
         if (error) throw error;
       }
 

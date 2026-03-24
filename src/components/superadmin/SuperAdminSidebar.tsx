@@ -5,7 +5,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Store, Users, CreditCard, TrendingUp, LogOut, ShieldCheck, ShoppingCart, Globe,
+  LayoutDashboard, Store, Users, CreditCard, TrendingUp, LogOut, ShieldCheck, ShoppingCart, Globe, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
